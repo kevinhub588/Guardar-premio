@@ -1,0 +1,3606 @@
+-- ============================================================
+-- 🔐 SISTEMA DE KEY — Croks Hub
+-- ============================================================
+local KEY_CONFIG = {
+	KEY_LIST_URL = "https://pastebin.com/raw/jHG9TMC7",
+	ADMIN_KEY    = "2560ffgg56",
+	SAVE_FILE    = "crokshub_key.txt",
+	HWID_LOCK    = true,
+	DISCORD      = "discord.gg/dDqdH8tJdM",
+	MAX_KEYS     = 3,
+}
+
+local KEY_STATE = { Passed = false, Key = nil, IsAdmin = false }
+
+local hasFileAPI = (typeof(writefile) == "function" and typeof(readfile) == "function")
+local function saveKey(k)
+	if hasFileAPI then pcall(function() writefile(KEY_CONFIG.SAVE_FILE, tostring(k)) end) end
+end
+local function loadKey()
+	if not hasFileAPI then return nil end
+	local ok, data = pcall(function() return readfile(KEY_CONFIG.SAVE_FILE) end)
+	if ok and data and #data > 0 then return tostring(data) end
+	return nil
+end
+
+local function getHWID()
+	if typeof(gethwid) == "function" then
+		local ok, r = pcall(gethwid)
+		if ok and r then return tostring(r) end
+	end
+	if typeof(get_hwid) == "function" then
+		local ok, r = pcall(get_hwid)
+		if ok and r then return tostring(r) end
+	end
+	return nil
+end
+
+local function fetchKeyList()
+	local ok, res = pcall(function() return game:HttpGet(KEY_CONFIG.KEY_LIST_URL, true) end)
+	if not ok or not res then return {} end
+
+	local list = {}
+	for key in res:gmatch("(CRK%-[A-Z0-9]+%-[A-Z0-9]+%-[A-Z0-9]+)") do
+		list[key] = true
+	end
+	return list
+end
+
+local function validateKey(inputKey)
+	inputKey = tostring(inputKey or ""):gsub("%s", "")
+	if #inputKey < 4 then return false, "Digite uma key válida" end
+
+	if inputKey == KEY_CONFIG.ADMIN_KEY then
+		return true, "Admin", true
+	end
+
+	local keys = fetchKeyList()
+	local count = 0
+	local exists = false
+	for k, _ in pairs(keys) do
+		count = count + 1
+		if k == inputKey then exists = true end
+	end
+
+	if count > KEY_CONFIG.MAX_KEYS then
+		return false, "Limite excedido"
+	end
+
+	if not exists then
+		return false, "Key inválida"
+	end
+
+	if KEY_CONFIG.HWID_LOCK then
+		local savedHwid = nil
+		local saved = loadKey()
+		if saved and saved:find("|") then
+			local k, h = saved:match("^([^|]+)|(.+)$")
+			if k == inputKey then savedHwid = h end
+		end
+		if savedHwid and getHWID() and savedHwid ~= getHWID() then
+			return false, "Key travada em outro dispositivo"
+		end
+	end
+
+	return true, "OK", false
+end
+
+local function saveKeyWithHwid(k)
+	local hwid = getHWID() or ""
+	saveKey(k .. "|" .. hwid)
+end
+
+local savedRaw = loadKey()
+if savedRaw then
+	local savedKey = savedRaw:match("^([^|]+)") or savedRaw
+	local ok, _, isAdmin = validateKey(savedKey)
+	if ok then
+		KEY_STATE.Passed = true
+		KEY_STATE.Key = savedKey
+		KEY_STATE.IsAdmin = isAdmin
+	end
+end
+
+if not KEY_STATE.Passed then
+	local function parentKeyGui()
+		if typeof(gethui) == "function" then
+			local ok, r = pcall(gethui)
+			if ok and typeof(r) == "Instance" then return r end
+		end
+		return game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "CroksKeySystem"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 1000000
+	gui.Parent = parentKeyGui()
+
+	local W, H = 360, 260
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.new(1, 0, 1, 0)
+	bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	bg.BackgroundTransparency = 0.4
+	bg.BorderSizePixel = 0
+	bg.Parent = gui
+
+	local window = Instance.new("Frame")
+	window.Size = UDim2.fromOffset(W, H)
+	window.Position = UDim2.new(0.5, -W/2, 0.5, -H/2)
+	window.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	window.BorderSizePixel = 0
+	window.Active = true
+	window.Draggable = true
+	window.Parent = gui
+	Instance.new("UICorner", window).CornerRadius = UDim.new(0, 14)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 0, 60)
+	stroke.Thickness = 2.5
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = window
+
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 60)),
+		ColorSequenceKeypoint.new(0.20, Color3.fromRGB(255, 90, 130)),
+		ColorSequenceKeypoint.new(0.40, Color3.fromRGB(255, 0, 60)),
+		ColorSequenceKeypoint.new(0.60, Color3.fromRGB(255, 140, 170)),
+		ColorSequenceKeypoint.new(0.80, Color3.fromRGB(255, 0, 60)),
+		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 90, 130)),
+	})
+	grad.Parent = stroke
+	task.spawn(function()
+		local rot = 0
+		while stroke.Parent do
+			rot = (rot + 5) % 360
+			grad.Rotation = rot
+			task.wait(0.03)
+		end
+	end)
+
+	local logo = Instance.new("Frame")
+	logo.Size = UDim2.fromOffset(50, 50)
+	logo.Position = UDim2.new(0.5, -25, 0, 14)
+	logo.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	logo.BorderSizePixel = 0
+	logo.ClipsDescendants = true
+	logo.Parent = window
+	Instance.new("UICorner", logo).CornerRadius = UDim.new(1, 0)
+	local lStroke = Instance.new("UIStroke")
+	lStroke.Color = Color3.fromRGB(255, 0, 60)
+	lStroke.Thickness = 1.5
+	lStroke.Parent = logo
+
+	local lImg = Instance.new("ImageLabel")
+	lImg.Size = UDim2.new(1, 0, 1, 0)
+	lImg.BackgroundTransparency = 1
+	lImg.Image = "rbxassetid://74429482718401"
+	lImg.ScaleType = Enum.ScaleType.Crop
+	lImg.Parent = logo
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 18)
+	title.Position = UDim2.new(0, 0, 0, 68)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.Code
+	title.TextSize = 14
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Text = "🔐 CROKS HUB — KEY"
+	title.Parent = window
+
+	local sub = Instance.new("TextLabel")
+	sub.Size = UDim2.new(1, 0, 0, 12)
+	sub.Position = UDim2.new(0, 0, 0, 88)
+	sub.BackgroundTransparency = 1
+	sub.Font = Enum.Font.Code
+	sub.TextSize = 9
+	sub.TextColor3 = Color3.fromRGB(255, 140, 170)
+	sub.Text = "Digite sua key para acessar"
+	sub.Parent = window
+
+	local inpFrame = Instance.new("Frame")
+	inpFrame.Size = UDim2.new(1, -44, 0, 36)
+	inpFrame.Position = UDim2.fromOffset(22, 110)
+	inpFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+	inpFrame.BorderSizePixel = 0
+	inpFrame.Parent = window
+	Instance.new("UICorner", inpFrame).CornerRadius = UDim.new(0, 8)
+	local iStroke = Instance.new("UIStroke")
+	iStroke.Color = Color3.fromRGB(65, 65, 85)
+	iStroke.Thickness = 1
+	iStroke.Parent = inpFrame
+
+	local input = Instance.new("TextBox")
+	input.Size = UDim2.new(1, -20, 1, 0)
+	input.Position = UDim2.fromOffset(10, 0)
+	input.BackgroundTransparency = 1
+	input.Font = Enum.Font.Code
+	input.TextSize = 12
+	input.TextColor3 = Color3.fromRGB(255, 255, 255)
+	input.PlaceholderText = "CRK-XXXX-XXXX-XXXX"
+	input.PlaceholderColor3 = Color3.fromRGB(120, 120, 135)
+	input.Text = ""
+	input.ClearTextOnFocus = false
+	input.Parent = inpFrame
+
+	local enterBtn = Instance.new("TextButton")
+	enterBtn.Size = UDim2.new(1, -44, 0, 36)
+	enterBtn.Position = UDim2.fromOffset(22, 154)
+	enterBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 60)
+	enterBtn.BorderSizePixel = 0
+	enterBtn.Font = Enum.Font.Code
+	enterBtn.TextSize = 13
+	enterBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	enterBtn.Text = "▶ ENTRAR"
+	enterBtn.AutoButtonColor = false
+	enterBtn.Parent = window
+	Instance.new("UICorner", enterBtn).CornerRadius = UDim.new(0, 8)
+	local bStroke = Instance.new("UIStroke")
+	bStroke.Color = Color3.fromRGB(255, 90, 130)
+	bStroke.Thickness = 1.5
+	bStroke.Parent = enterBtn
+
+	local status = Instance.new("TextLabel")
+	status.Size = UDim2.new(1, -44, 0, 16)
+	status.Position = UDim2.fromOffset(22, 196)
+	status.BackgroundTransparency = 1
+	status.Font = Enum.Font.Code
+	status.TextSize = 10
+	status.TextColor3 = Color3.fromRGB(180, 180, 195)
+	status.Text = "Aguardando..."
+	status.Parent = window
+
+	local discord = Instance.new("TextButton")
+	discord.Size = UDim2.new(1, -44, 0, 18)
+	discord.Position = UDim2.fromOffset(22, 218)
+	discord.BackgroundTransparency = 1
+	discord.Font = Enum.Font.Code
+	discord.TextSize = 9
+	discord.TextColor3 = Color3.fromRGB(255, 140, 170)
+	discord.Text = "💬 " .. KEY_CONFIG.DISCORD
+	discord.Parent = window
+	discord.MouseButton1Click:Connect(function()
+		if typeof(setclipboard) == "function" then
+			pcall(setclipboard, "https://" .. KEY_CONFIG.DISCORD)
+			status.Text = "Link copiado!"
+			status.TextColor3 = Color3.fromRGB(40, 220, 100)
+		end
+	end)
+
+	enterBtn.MouseButton1Click:Connect(function()
+		local key = input.Text
+		if #key < 4 then
+			status.Text = "❌ Digite uma key"
+			status.TextColor3 = Color3.fromRGB(255, 50, 50)
+			return
+		end
+
+		status.Text = "⏳ Verificando..."
+		status.TextColor3 = Color3.fromRGB(245, 158, 11)
+
+		task.spawn(function()
+			local ok, msg, isAdmin = validateKey(key)
+			if ok then
+				saveKeyWithHwid(key)
+				status.Text = isAdmin and "👑 Admin liberado!" or "✅ Acesso liberado!"
+				status.TextColor3 = Color3.fromRGB(40, 220, 100)
+				KEY_STATE.Passed = true
+				KEY_STATE.Key = key
+				KEY_STATE.IsAdmin = isAdmin
+				task.wait(0.8)
+				gui:Destroy()
+			else
+				status.Text = "❌ " .. msg
+				status.TextColor3 = Color3.fromRGB(255, 50, 50)
+			end
+		end)
+	end)
+end
+
+while not KEY_STATE.Passed do
+	task.wait(0.2)
+end
+
+-- ============================================================
+-- Croks Hub • Premium Edition v4.8 — By Kevin
+-- ============================================================
+
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService  = game:GetService("UserInputService")
+local TweenService      = game:GetService("TweenService")
+local CoreGui           = game:GetService("CoreGui")
+local localPlayer       = Players.LocalPlayer
+
+-- ============================================================
+-- CONFIG VISUAL
+-- ============================================================
+local CONFIG = {
+	Red = Color3.fromRGB(255, 0, 60),
+	RedDark = Color3.fromRGB(140, 5, 30),
+	RedGlow = Color3.fromRGB(255, 90, 130),
+	RedSoft = Color3.fromRGB(255, 140, 170),
+	Bg = Color3.fromRGB(0, 0, 0),
+	Bg2 = Color3.fromRGB(6, 6, 10),
+	Bg3 = Color3.fromRGB(18, 18, 26),
+	Bg4 = Color3.fromRGB(40, 40, 52),
+	BgHover = Color3.fromRGB(60, 60, 78),
+	Border = Color3.fromRGB(65, 65, 85),
+	Text = Color3.fromRGB(255, 255, 255),
+	TextSoft = Color3.fromRGB(220, 220, 230),
+	Muted = Color3.fromRGB(180, 180, 195),
+	Success = Color3.fromRGB(40, 220, 100),
+	Danger = Color3.fromRGB(255, 50, 50),
+	Warn = Color3.fromRGB(245, 158, 11),
+	Version = "v4.8.0",
+	Discord = "discord.gg/dDqdH8tJdM",
+	LOGO_IMAGE = "rbxassetid://74429482718401",
+	NeonColors = {
+		Red   = { main = Color3.fromRGB(255, 0, 60),   glow = Color3.fromRGB(255, 90, 130) },
+		Blue  = { main = Color3.fromRGB(0, 180, 255),  glow = Color3.fromRGB(120, 220, 255) },
+		Black = { main = Color3.fromRGB(120, 120, 140), glow = Color3.fromRGB(180, 180, 200) },
+		White = { main = Color3.fromRGB(255, 255, 255), glow = Color3.fromRGB(200, 200, 210) },
+		RGB   = { main = Color3.fromRGB(255, 0, 60),   glow = Color3.fromRGB(255, 90, 130) },
+	},
+}
+
+local CFG = {
+	SpeedCap = 1.15, HopRatio = 1.515, HopMin = 40,
+	HopGap = 0.06, HopGapMin = 0.06, HopGapMax = 0.2,
+	HopRetries = 6, HopLift = 42, LandOffset = 14,
+	LandSettle = 0.08, DropDelay = 0.05, GrabInterval = 0.03,
+	Regfar = 40, Height = 70, ClimbShare = 0.5,
+	CarryRatio = 0.9, EasyRatio = 1.3,
+}
+local FPS = { 60, 30, 0.15 }
+local MAX_INDEX_BOARDS = 40
+
+local FILTER = {
+	Mode = "Off", MinRarity = 0, MinValue = 0,
+	RarityNames = {
+		"Qualquer", "Common+", "Uncommon+", "Rare+", "Epic+",
+		"Legendary+", "Mythic+", "Cosmic+", "Secret+",
+		"Eternal+", "Divine+",
+	},
+}
+
+local AUTO_STEAL_MODE = "Melhor"
+local AUTO_PLACE_MODE = "Todos"
+local STATS = { Ovos = 0, Inicio = os.clock() }
+local NEON_MODE = "Red"
+local INDEX_ESP_MODE = "Todas"
+
+-- ============================================================
+-- HELPERS
+-- ============================================================
+local function parseValue(text)
+	text = tostring(text or ""):lower():gsub("%s", "")
+	local num, suffix = text:match("^([%d%.]+)([kmbt]?)$")
+	num = tonumber(num)
+	if not num then return nil end
+	local mult = ({ k = 1e3, m = 1e6, b = 1e9, t = 1e12 })[suffix] or 1
+	return math.floor(num * mult)
+end
+
+local function passFilter(info)
+	if FILTER.Mode == "Value" then return info.Value >= FILTER.MinValue end
+	if FILTER.Mode == "Rarity" then return info.Rarity >= FILTER.MinRarity end
+	return true
+end
+
+local function safeRequire(getter)
+	local ok, result = pcall(function() return require(getter()) end)
+	return ok and result or nil
+end
+
+local networkingFolder = ReplicatedStorage:WaitForChild("Packages", 30)
+if networkingFolder then
+	networkingFolder = networkingFolder:WaitForChild("Networking", 30)
+end
+if not networkingFolder then
+	networkingFolder = ReplicatedStorage:FindFirstChild("Networking")
+end
+
+local EggState   = safeRequire(function() return ReplicatedStorage.Client.EggState end)
+local Assets     = safeRequire(function() return ReplicatedStorage.Data.Assets end)
+local Mutations  = safeRequire(function() return ReplicatedStorage.Shared.Modules.Mutations end)
+local SaveModule = safeRequire(function() return ReplicatedStorage.Shared.Save end)
+
+if SaveModule and type(SaveModule.Get) ~= "function" and type(SaveModule.Peek) == "function" then
+	SaveModule.Get = SaveModule.Peek
+end
+
+local function remote(name)
+	if not networkingFolder then return nil end
+	return networkingFolder:FindFirstChild(name)
+end
+
+local function root()
+	local c = localPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- ============================================================
+-- SHIELD
+-- ============================================================
+local shield = { Original = nil, Clone = nil, Links = {}, Connection = nil, Added = nil }
+
+local function walkSpeed()
+	local c = localPlayer.Character
+	local h = c and c:FindFirstChildOfClass("Humanoid")
+	local s = h and h.WalkSpeed or 16
+	if shield.Original and shield.Original.Health > 0 then
+		s = math.min(s, shield.Original.WalkSpeed)
+	end
+	local ok, res = pcall(function()
+		local st = localPlayer:FindFirstChild("leaderstats")
+		st = st and st:FindFirstChild("Speed")
+		local util = require(ReplicatedStorage.Shared.Util.TreadmillUtil)
+		return st and util.SpeedPowerToWalkSpeed(st.Value) or nil
+	end)
+	if ok and type(res) == "number" and res > 0 then s = math.min(s, res) end
+	return s
+end
+
+local function shieldControls(h)
+	pcall(function()
+		local s = localPlayer:FindFirstChild("PlayerScripts")
+		local m = s and s:FindFirstChild("PlayerModule")
+		if m then
+			local c = require(m):GetControls()
+			if type(c) == "table" then c.humanoid = h end
+		end
+	end)
+end
+
+local function shieldAnimate(ch)
+	local a = ch and ch:FindFirstChild("Animate")
+	if a and a:IsA("LocalScript") then
+		task.spawn(function() a.Enabled = false task.wait() a.Enabled = true end)
+	end
+end
+
+local function shieldUnlink()
+	for _, l in ipairs(shield.Links) do pcall(function() l:Disconnect() end) end
+	table.clear(shield.Links)
+end
+
+local gStates = {
+	[Enum.HumanoidStateType.Running] = true,
+	[Enum.HumanoidStateType.RunningNoPhysics] = true,
+	[Enum.HumanoidStateType.Landed] = true,
+}
+
+local function grounded(h)
+	if not h or h.Health <= 0 or h.FloorMaterial == Enum.Material.Air then return false end
+	return gStates[h:GetState()] == true
+end
+
+local function shieldSwap()
+	local ch = localPlayer.Character
+	local h = ch and ch:FindFirstChildOfClass("Humanoid")
+	if not h or h.Health <= 0 then return end
+	if shield.Clone and shield.Clone.Parent == ch then return end
+	if not grounded(h) then return end
+	local cl = h:Clone()
+	h.Parent = nil
+	cl.Parent = ch
+	workspace.CurrentCamera.CameraSubject = cl
+	shieldControls(cl)
+	shieldAnimate(ch)
+	shield.Original = h
+	shield.Clone = cl
+	table.insert(shield.Links, h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+		if cl.Parent ~= nil then cl.WalkSpeed = h.WalkSpeed end
+	end))
+	local a1 = h:FindFirstChildOfClass("Animator")
+	local a2 = cl:FindFirstChildOfClass("Animator")
+	if a1 and a2 then
+		table.insert(shield.Links, a1.AnimationPlayed:Connect(function(p)
+			local anim = p.Animation
+			if not anim or cl.Parent == nil then return end
+			local ok, tk = pcall(function() return a2:LoadAnimation(anim) end)
+			if not ok or not tk then return end
+			pcall(function()
+				tk.Priority = p.Priority tk.Looped = p.Looped
+				tk:Play(0.05, math.max(p.WeightTarget, 0.01), p.Speed)
+			end)
+			local st
+			st = p.Stopped:Connect(function() st:Disconnect() pcall(function() tk:Stop(0.1) end) end)
+		end))
+	end
+	table.insert(shield.Links, cl.Died:Connect(function()
+		shieldUnlink()
+		shield.Original, shield.Clone = nil, nil
+		local cur = localPlayer.Character
+		if cur and h.Parent == nil then
+			h.Parent = cur
+			workspace.CurrentCamera.CameraSubject = h
+			shieldControls(h)
+		end
+		pcall(function() cl:Destroy() end)
+		h.Health = 0
+	end))
+end
+
+local function shieldUndo()
+	shieldUnlink()
+	local ch = localPlayer.Character
+	local o, cl = shield.Original, shield.Clone
+	shield.Original, shield.Clone = nil, nil
+	if o and cl and ch and o.Parent == nil and cl.Parent == ch then
+		o.Parent = ch
+		workspace.CurrentCamera.CameraSubject = o
+		shieldControls(o)
+		pcall(function() cl:Destroy() end)
+		shieldAnimate(ch)
+	end
+end
+
+local function shieldStart()
+	shieldSwap()
+	local n = 0
+	shield.Connection = RunService.Heartbeat:Connect(function(dt)
+		n += dt
+		local ch = localPlayer.Character
+		local missing = not (shield.Clone and ch and shield.Clone.Parent == ch)
+		if (missing and 0.25 or 3) <= n then n = 0 shieldSwap() end
+	end)
+	shield.Added = localPlayer.CharacterAdded:Connect(function(ch)
+		shieldUnlink()
+		shield.Original, shield.Clone = nil, nil
+		task.spawn(function()
+			ch:WaitForChild("Humanoid", 10)
+			task.wait(1)
+			if shield.Connection and localPlayer.Character == ch then shieldSwap() end
+		end)
+	end)
+end
+
+local function shieldStop()
+	if shield.Connection then shield.Connection:Disconnect() shield.Connection = nil end
+	if shield.Added then shield.Added:Disconnect() shield.Added = nil end
+	shieldUndo()
+end
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local state = {
+	Carrying = false, Uid = nil, Delivered = 0, Busy = false,
+	Cancel = false, Mult = 1, PulledAt = 0, HeldSeen = 0,
+	GuessedDrop = false,
+}
+
+if type(EggState) == "table"
+	and type(EggState.CarryChanged) == "table"
+	and type(EggState.CarryChanged.Connect) == "function" then
+	EggState.CarryChanged:Connect(function(arg)
+		local carry = type(arg) == "table" and arg.IsCarrying == true
+		if carry and arg.GuardDisabled == true then carry = false end
+		state.GuessedDrop = false
+		if carry then state.HeldSeen = os.clock() end
+		if carry and type(arg.Uid) == "string" then
+			state.Uid = arg.Uid
+			local m = tonumber(arg.SpeedMultiplier)
+			if m and m > 0 then state.Mult = m end
+		end
+		state.Carrying = carry
+	end)
+end
+
+pcall(function()
+	local r = remote("RE/EggWorld/FieldEggRedeemVerdict")
+	if r then r.OnClientEvent:Connect(function() state.Delivered = os.clock() end) end
+end)
+pcall(function()
+	local r = remote("RE/RigSync/Refresh")
+	if r then
+		r.OnClientEvent:Connect(function(arg)
+			if type(arg) == "table" and arg.Action == "Relocate" then
+				state.PulledAt = os.clock()
+			end
+		end)
+	end
+end)
+
+local function takeEgg(uid)
+	if type(uid) == "string" and type(EggState) == "table"
+		and type(EggState.CarryFieldEgg) == "function" then
+		pcall(EggState.CarryFieldEgg, uid)
+	end
+end
+
+local function dropEgg()
+	if type(EggState) == "table" and type(EggState.DropFieldEgg) == "function" then
+		pcall(EggState.DropFieldEgg, "PlayerRequest")
+	end
+end
+
+local function promptNear(pos, radius)
+	local best, bd = nil, radius
+	for _, ch in ipairs(workspace:GetChildren()) do
+		if ch.Name == "SmartPromptPart" and ch:IsA("BasePart") then
+			local p = ch:FindFirstChild("CarryAreaEgg")
+			if p and p:IsA("ProximityPrompt") then
+				local d = (ch.Position - pos).Magnitude
+				if d < bd then best, bd = p, d end
+			end
+		end
+	end
+	return best
+end
+
+local function heldByMe(uid)
+	local ch = localPlayer.Character
+	if type(uid) ~= "string" or not ch then return false end
+	local e = workspace:FindFirstChild(uid)
+	if not e then return false end
+	for _, d in ipairs(e:GetDescendants()) do
+		if d:IsA("WeldConstraint") or d:IsA("JointInstance") then
+			local ok, a, b = pcall(function() return d.Part0, d.Part1 end)
+			if ok and ((a and a:IsDescendantOf(ch)) or (b and b:IsDescendantOf(ch))) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		if not state.Carrying then
+			if state.GuessedDrop and heldByMe(state.Uid) then
+				state.GuessedDrop, state.Carrying, state.HeldSeen = false, true, os.clock()
+			end
+		elseif heldByMe(state.Uid) then
+			state.HeldSeen = os.clock()
+		elseif os.clock() - state.HeldSeen > 0.8 then
+			state.Carrying, state.GuessedDrop = false, true
+		end
+	end
+end)
+
+-- ============================================================
+-- SNAPSHOT
+-- ============================================================
+local function snapshot()
+	local list = {}
+	local rf = remote("RF/EggWorld/AskFieldEggSnapshot")
+	if not rf then return list end
+	local ok, res = pcall(function() return rf:InvokeServer() end)
+	local recs = ok and type(res) == "table" and res.Records or nil
+	if type(recs) ~= "table" then return list end
+	for _, r in pairs(recs) do
+		if type(r) == "table"
+			and type(r.Uid) == "string"
+			and (r.State == "Slot" or r.State == "Dropped")
+			and typeof(r.BottomCFrame) == "CFrame" then
+			list[#list + 1] = r
+		end
+	end
+	return list
+end
+
+local function eggPosition(uid)
+	for _, r in ipairs(snapshot()) do
+		if r.Uid == uid then return r.BottomCFrame.Position end
+	end
+	return nil
+end
+
+local indexedCache = { Set = {}, At = 0 }
+local function getIndexedSet()
+	if os.clock() - indexedCache.At < 3 then return indexedCache.Set end
+	indexedCache.At = os.clock()
+	local set = {}
+	pcall(function()
+		local Save = SaveModule
+		if not Save then
+			local ok, r = pcall(function() return require(ReplicatedStorage.Shared.Save) end)
+			if ok then Save = r end
+		end
+		if Save then
+			local getter = Save.Peek or Save.Get
+			if type(getter) == "function" then
+				local ok, sv = pcall(getter)
+				if ok and type(sv) == "table" and type(sv.Index) == "table" then
+					for k, v in pairs(sv.Index) do
+						if v == true then set[tostring(k)] = true end
+					end
+				end
+			end
+		end
+	end)
+	indexedCache.Set = set
+	return set
+end
+
+local function readInventory()
+	local inv = {}
+	pcall(function()
+		if EggState and type(EggState.ReadOwnerEggs) == "function" then
+			local ok, res = pcall(EggState.ReadOwnerEggs, localPlayer.UserId)
+			if ok and type(res) == "table" then
+				for uid, rec in pairs(res) do
+					if type(rec) == "table" then inv[uid] = rec end
+				end
+			end
+		end
+	end)
+	return inv
+end
+
+local function lookupAsset(category)
+	if type(Assets) ~= "table" or type(Assets.Directory) ~= "table" then return nil end
+	return Assets.Directory[tostring(category)]
+end
+
+local function describeRecord(category, record)
+	local entry = lookupAsset(category)
+	local info = {
+		Uid = record.Uid, Category = tostring(category),
+		Name = tostring(category), PetIcon = "", EggIcon = "",
+		Rarity = 0, Value = 0,
+	}
+	if type(entry) == "table" then
+		info.Name = tostring(entry.DisplayName or category)
+		local petIcon = entry.Icon
+		if petIcon ~= nil and tostring(petIcon) ~= "" then info.PetIcon = tostring(petIcon) end
+		local eggIcon = type(entry.Egg) == "table" and entry.Egg.Icon or nil
+		if eggIcon ~= nil and tostring(eggIcon) ~= "" then info.EggIcon = tostring(eggIcon) end
+		if type(entry.Rarity) == "table" then
+			info.Rarity = tonumber(entry.Rarity.RarityNumber or entry.Rarity.Rank) or 0
+		end
+		local s = tonumber(record.AssetScale) or 1
+		local f = s > 5 and (s / 5) ^ 1.2 * 19.637875755794113 or s ^ 1.85
+		local m = 1
+		if type(Mutations) == "table" and type(Mutations.EarningsFor) == "function" then
+			local okM, rM = pcall(Mutations.EarningsFor,
+				type(record.Mutations) == "table" and record.Mutations or {})
+			if okM and type(rM) == "number" then m = rM end
+		end
+		info.Value = (tonumber(entry.EarningRate) or 0) * f * m
+	end
+	return info
+end
+
+local function describe(record)
+	return describeRecord(tostring(record.AssetCategory), record)
+end
+
+local function formatVal(v)
+	if not v or v <= 0 then return "$0/s" end
+	local u = { "", "K", "M", "B", "T", "Qa", "Qi" }
+	local n, i = v, 1
+	while math.abs(n) >= 1000 and i < #u do n = n / 1000 i = i + 1 end
+	local s = i == 1 and string.format("%d", math.floor(n)) or string.format("%.1f", n)
+	return "$" .. s .. u[i] .. "/s"
+end
+
+local function formatDist(n)
+	if n >= 1000 then return string.format("%.1fkm", n / 1000) end
+	return string.format("%dm", math.floor(n + 0.5))
+end
+
+local function formatTime(sec)
+	sec = math.floor(sec)
+	local h = math.floor(sec / 3600)
+	local m = math.floor((sec % 3600) / 60)
+	local s = sec % 60
+	return string.format("%02d:%02d:%02d", h, m, s)
+end
+
+-- ============================================================
+-- BASE SCANNER
+-- ============================================================
+local BASE_SCAN = { Last = nil, At = 0 }
+local function scanBase()
+	if os.clock() - BASE_SCAN.At < 2 and BASE_SCAN.Last then
+		return BASE_SCAN.Last
+	end
+	BASE_SCAN.At = os.clock()
+	local inv = readInventory()
+	local total = 0
+	local count = 0
+	local list = {}
+	for uid, rec in pairs(inv) do
+		if rec.Placement ~= nil then
+			local info = describeRecord(tostring(rec.AssetCategory or ""), rec)
+			info.Uid = uid
+			total += info.Value or 0
+			count += 1
+			list[#list + 1] = info
+		end
+	end
+	table.sort(list, function(a, b)
+		if (a.Value or 0) ~= (b.Value or 0) then
+			return (a.Value or 0) > (b.Value or 0)
+		end
+		return a.Name < b.Name
+	end)
+	local result = { Total = total, Count = count, List = list }
+	BASE_SCAN.Last = result
+	return result
+end
+
+-- ============================================================
+-- LOGS
+-- ============================================================
+local LOGS = { Lista = {}, Max = 100 }
+local function log(msg)
+	local t = os.date("%H:%M:%S")
+	table.insert(LOGS.Lista, 1, "[" .. t .. "] " .. tostring(msg))
+	while #LOGS.Lista > LOGS.Max do table.remove(LOGS.Lista) end
+end
+local status = function(text) log(text) end
+
+-- ============================================================
+-- FPS / CAMERA
+-- ============================================================
+local function frozenCamera()
+	local c = workspace.CurrentCamera
+	if not c then return function() end end
+	local ot = c.CameraType
+	local fr = c.CFrame
+	pcall(function() c.CameraType = Enum.CameraType.Scriptable c.CFrame = fr end)
+	return function() pcall(function() c.CameraType = ot end) end
+end
+
+local fpsGen = 0
+local function fpsOn()
+	if typeof(setfpscap) ~= "function" then return end
+	fpsGen += 1
+	local mine = fpsGen
+	task.spawn(function()
+		local hi = true
+		local st = os.clock()
+		while fpsGen == mine and os.clock() - st < 60 do
+			pcall(setfpscap, hi and FPS[1] or FPS[2])
+			hi = not hi
+			task.wait(FPS[3])
+		end
+	end)
+end
+local function fpsOff()
+	fpsGen += 1
+	if typeof(setfpscap) == "function" then pcall(setfpscap, 240) end
+end
+
+-- ============================================================
+-- GEOMETRIA
+-- ============================================================
+local function lineInfo()
+	local w = workspace:FindFirstChild("World") or workspace:FindFirstChild("__OBJECTS")
+	w = w and w:FindFirstChild("Areas")
+	w = w and w:FindFirstChild("SeparationLine")
+	local ok = w and w:IsA("BasePart")
+	return ok and w.Position.X or 552.2, ok and w.Position.Y or 67.67
+end
+
+local function homePoint()
+	for _, def in ipairs({
+		{ { "GearGiver_Slap", "Podium" }, Vector3.new(-16.415, 21.072, -6.106) },
+		{ { "World", "Machines", "RiftMachine", "Rift", "Meshes/VoidPortal_Cube.003" }, Vector3.new(-26.776, 1.75, 18.665) },
+		{ { "__OBJECTS", "Machines", "RiftMachine", "Rift", "Meshes/VoidPortal_Cube.003" }, Vector3.new(-26.776, 1.75, 18.665) },
+	}) do
+		local n = workspace
+		for _, nm in ipairs(def[1]) do n = n and n:FindFirstChild(nm) or nil end
+		if n and n:IsA("BasePart") then return n.CFrame:PointToWorldSpace(def[2]) end
+	end
+	return Vector3.new(528.7, 70.57, -364.11)
+end
+
+local function place(pos)
+	local r = root()
+	if not r then return end
+	pcall(function()
+		r.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(90), 0)
+		r.AssemblyLinearVelocity = Vector3.zero
+		r.AssemblyAngularVelocity = Vector3.zero
+	end)
+end
+
+-- ============================================================
+-- DANGER
+-- ============================================================
+local dangerCache, dangerAt = {}, 0
+local function dangers()
+	if os.clock() - dangerAt < 1 then return dangerCache end
+	dangerAt = os.clock()
+	local list = {}
+	local function add(inst)
+		local ok, cf, sz = pcall(function()
+			if inst:IsA("Model") then return inst:GetBoundingBox() end
+			if inst:IsA("BasePart") then return inst.CFrame, inst.Size end
+		end)
+		if ok and cf and sz then
+			local half = Vector3.new(math.abs(sz.X), 0, math.abs(sz.Z)) * 0.5
+			local rt = (cf - cf.Position):VectorToWorldSpace(half)
+			local rx = math.max(math.abs(rt.X), half.X, half.Z)
+			local rz = math.max(math.abs(rt.Z), half.X, half.Z)
+			list[#list + 1] = {
+				MinX = cf.Position.X - rx, MaxX = cf.Position.X + rx,
+				MinZ = cf.Position.Z - rz, MaxZ = cf.Position.Z + rz,
+			}
+		end
+	end
+	local function bad(name)
+		if name == "ScrambleLocalVisuals" or name == "DrScrambleEvent" then return false end
+		name = string.lower(name)
+		return string.find(name, "portal", 1, true)
+			or string.find(name, "teleport", 1, true)
+			or string.find(name, "mech", 1, true)
+			or string.find(name, "arena", 1, true)
+			or string.find(name, "scramble", 1, true)
+	end
+	for _, ch in ipairs(workspace:GetChildren()) do
+		if (ch:IsA("Model") or ch:IsA("BasePart") or ch:IsA("Folder")) and bad(ch.Name) then
+			if ch:IsA("Folder") then
+				for _, i in ipairs(ch:GetChildren()) do add(i) end
+			else add(ch) end
+		end
+	end
+	local bld = workspace:FindFirstChild("World")
+	bld = bld and bld:FindFirstChild("Build")
+	if bld then
+		for _, ch in ipairs(bld:GetChildren()) do
+			if bad(ch.Name) then
+				for _, i in ipairs(ch:GetChildren()) do add(i) end
+			end
+		end
+	end
+	dangerCache = list
+	return list
+end
+
+local function avoid(from, to)
+	for _, d in ipairs(dangers()) do
+		local x0, x1, z0, z1 = d.MinX - 12, d.MaxX + 12, d.MinZ - 12, d.MaxZ + 12
+		local inside = from.X >= x0 and from.X <= x1 and from.Z >= z0 and from.Z <= z1
+		if not inside then
+			local t0, t1, hit = 0, 1, true
+			for _, ax in ipairs({
+				{ from.X, to.X - from.X, x0, x1 },
+				{ from.Z, to.Z - from.Z, z0, z1 },
+			}) do
+				local p, dl, lo, hi = ax[1], ax[2], ax[3], ax[4]
+				if math.abs(dl) < 1e-6 then
+					if p < lo or p > hi then hit = false end
+				else
+					local ta, tb = (lo - p) / dl, (hi - p) / dl
+					if ta > tb then ta, tb = tb, ta end
+					t0, t1 = math.max(t0, ta), math.min(t1, tb)
+					if t0 > t1 then hit = false end
+				end
+			end
+			if hit then
+				local zL, zH = z0 - 2, z1 + 2
+				local z = math.abs(from.Z - zL) <= math.abs(from.Z - zH) and zL or zH
+				if z < -440 or z > -290 then z = z == zL and zH or zL end
+				local x = math.abs(from.X - x0) <= math.abs(from.X - x1) and x0 or x1
+				if math.abs(from.Z - z) < 3 then
+					x = math.abs(to.X - x0) <= math.abs(to.X - x1) and x0 or x1
+				end
+				return Vector3.new(x, to.Y, z)
+			end
+		end
+	end
+	return to
+end
+
+-- ============================================================
+-- MOVIMENTO
+-- ============================================================
+local function runToEgg(uid, egg)
+	local lineX = lineInfo()
+	local home = homePoint()
+	local ch = localPlayer.Character
+	local h = ch and ch:FindFirstChildOfClass("Humanoid")
+	if h then
+		h.PlatformStand = false
+		if ch:FindFirstChildWhichIsA("Tool") then pcall(function() h:UnequipTools() end) end
+	end
+	local r = root()
+	if not r then return false end
+	local stage = "field"
+	if r.Position.X < lineX - 2
+		and Vector3.new(r.Position.X - home.X, 0, r.Position.Z - home.Z).Magnitude > 20 then
+		stage = "safe"
+	end
+	local st, lc, lp, lt = os.clock(), os.clock(), r.Position, 0
+	while os.clock() - st < 120 and not state.Cancel do
+		r = root()
+		if not r then return false end
+		local fe = Vector3.new(egg.X - r.Position.X, 0, egg.Z - r.Position.Z)
+		if stage == "field" and fe.Magnitude <= 2.5 then break end
+		local tgt = egg
+		if stage == "safe" then
+			if Vector3.new(home.X - r.Position.X, 0, home.Z - r.Position.Z).Magnitude <= 6 then
+				stage = "field"
+			else tgt = home end
+		end
+		local wp = avoid(r.Position, tgt)
+		local fl = Vector3.new(wp.X - r.Position.X, 0, wp.Z - r.Position.Z)
+		local u = fl.Magnitude > 0.01 and fl.Unit or Vector3.zero
+		local sp = math.max(walkSpeed() * CFG.SpeedCap, 8)
+		local v = u * math.min(sp, fl.Magnitude / 0.05)
+		pcall(function()
+			r.AssemblyLinearVelocity = Vector3.new(v.X, r.AssemblyLinearVelocity.Y, v.Z)
+			if h and u.Magnitude > 0 then h:Move(u, false) end
+		end)
+		if os.clock() - lc >= 1.5 then
+			if (r.Position - lp).Magnitude < 3 and h and fe.Magnitude > 15 then
+				pcall(function() h.Jump = true end)
+			end
+			lp, lc = r.Position, os.clock()
+		end
+		if stage == "field" and fe.Magnitude <= 9 and os.clock() - lt > 0.1 then
+			lt = os.clock()
+			takeEgg(uid)
+		end
+		RunService.Heartbeat:Wait()
+	end
+	r = root()
+	if r then
+		pcall(function()
+			r.AssemblyLinearVelocity = Vector3.new(0, r.AssemblyLinearVelocity.Y, 0)
+			if h then h:Move(Vector3.zero, false) end
+		end)
+	end
+	return state.Carrying or (r ~= nil
+		and Vector3.new(egg.X - r.Position.X, 0, egg.Z - r.Position.Z).Magnitude <= 6)
+end
+
+local function eggNow(uid, cache)
+	local n = workspace:FindFirstChild(uid)
+	local s = workspace:FindFirstChild("AreaEggSlotsClient")
+	n = n or (s and s:FindFirstChild(uid))
+	if n then
+		local ok, p = pcall(function() return n:GetPivot().Position end)
+		if ok and p then cache.Pos, cache.At = p, os.clock() return p end
+	end
+	if os.clock() - cache.At >= 0.5 then
+		cache.At = os.clock()
+		cache.Pos = eggPosition(uid) or cache.Pos
+	end
+	return cache.Pos
+end
+
+local function grab(uid, timeout)
+	local cache = { At = 0 }
+	local w, s = 0, 1
+	while not state.Carrying and w < timeout and not state.Cancel do
+		local r = root()
+		local e = eggNow(uid, cache)
+		local dt = math.max(RunService.Heartbeat:Wait(), 1 / 240)
+		w += dt
+		s += dt
+		if r and e then
+			local d = e - r.Position
+			if d.Magnitude > 2 then
+				local pc = math.max(walkSpeed() * CFG.SpeedCap, 16)
+				local v = d / math.max(0.08, dt)
+				if v.Magnitude > pc then v = v.Unit * pc end
+				pcall(function()
+					r.AssemblyLinearVelocity = v + Vector3.new(0, workspace.Gravity * dt * 0.5, 0)
+					r.AssemblyAngularVelocity = Vector3.zero
+				end)
+			end
+			if s >= CFG.GrabInterval then
+				s = 0
+				local p = promptNear(e - Vector3.new(0, 3, 0), 10)
+				if p and typeof(fireproximityprompt) == "function" then
+					pcall(function() p.HoldDuration = 0 end)
+					pcall(fireproximityprompt, p)
+				end
+				task.spawn(takeEgg, uid)
+			end
+		elseif s >= CFG.GrabInterval then
+			s = 0
+			task.spawn(takeEgg, uid)
+		end
+	end
+	local r = root()
+	if r then pcall(function() r.AssemblyLinearVelocity = Vector3.zero end) end
+	return state.Carrying and state.Uid == uid
+end
+
+local function regrab(uid)
+	if state.Carrying then return true end
+	local r = root()
+	local e = eggPosition(uid)
+	if r and e and Vector3.new(r.Position.X - e.X, 0, r.Position.Z - e.Z).Magnitude > CFG.Regfar then
+		status("Ovo caiu longe, teleportando")
+		place(e + Vector3.new(0, 3, 0))
+	else
+		status("Ovo caiu perto")
+	end
+	return grab(uid, 3)
+end
+
+local function groundY(pos, fb)
+	local y = fb
+	pcall(function()
+		local pr = RaycastParams.new()
+		pr.FilterType = Enum.RaycastFilterType.Exclude
+		pr.FilterDescendantsInstances = { localPlayer.Character }
+		pr.IgnoreWater = true
+		local hit = workspace:Raycast(pos + Vector3.new(0, 60, 0), Vector3.new(0, -140, 0), pr)
+		if hit and hit.Material ~= Enum.Material.Water and math.abs(hit.Position.Y - fb) < 40 then
+			y = hit.Position.Y + 3.5
+		end
+	end)
+	return y
+end
+
+local function carrySpeed(dist)
+	local ws = walkSpeed()
+	local base = ws * math.min(CFG.CarryRatio, CFG.SpeedCap) * state.Mult
+	local fast = base * 1.5
+	local excess = 5.5 * base
+	local lim = fast
+	if dist and dist > excess then
+		lim = math.min(fast, base * dist / (dist - excess))
+	end
+	return math.min(
+		math.max(math.min(base * CFG.EasyRatio, lim), base),
+		math.max(ws * CFG.SpeedCap, base)
+	)
+end
+
+local function runHome(lineX, laneZ)
+	local st = os.clock()
+	local home = homePoint()
+	local ck = lineX - 7
+	local ht = CFG.Height
+	local sh = math.clamp(CFG.ClimbShare, 0.1, 0.9)
+	local ds = ht * math.sqrt(1 - sh * sh) / sh
+	local ch = localPlayer.Character
+	local h = ch and ch:FindFirstChildOfClass("Humanoid")
+	if h then h.PlatformStand = false end
+	local r = root()
+	if r and ch and ht > 0.5 and home.Y + ht - 2 > r.Position.Y then
+		pcall(function()
+			ch:PivotTo(CFrame.new(Vector3.new(r.Position.X, home.Y + ht, r.Position.Z)) * r.CFrame.Rotation)
+			r.AssemblyLinearVelocity = Vector3.zero
+			r.AssemblyAngularVelocity = Vector3.zero
+		end)
+	end
+	local s0 = root()
+	local sp = carrySpeed(s0 and (Vector3.new(s0.Position.X - home.X, 0, s0.Position.Z - home.Z).Magnitude + math.max(0, ht) * 2) or nil)
+	local lst = os.clock()
+	local to = 0
+	status("Zona segura")
+	while state.Carrying and state.Delivered < st and not state.Cancel and to < 25 do
+		r = root()
+		if not r then return false end
+		local nw = os.clock()
+		local dt = math.max(nw - lst, 1 / 240)
+		lst = nw
+		to += dt
+		local tH = r.Position.X <= ck + 2
+		local tg = tH and home or Vector3.new(ck, home.Y, laneZ)
+		if tH and Vector3.new(home.X - r.Position.X, 0, home.Z - r.Position.Z).Magnitude < 2 then break end
+		local am = avoid(r.Position, tg)
+		local fl = Vector3.new(am.X - r.Position.X, 0, am.Z - r.Position.Z)
+		local rm = tH and 0 or math.max(0, r.Position.X - ck)
+		local wY = home.Y + ht
+		if tH or rm <= ds then wY = home.Y + ht * math.clamp(rm / math.max(ds, 1), 0, 1) end
+		local vy = math.clamp((wY - r.Position.Y) / 0.12, -sp * sh, sp * sh)
+		local hz = math.sqrt(math.max(sp * sp - vy * vy, 0))
+		local v = fl.Magnitude > 0.01 and fl.Unit * math.min(hz, fl.Magnitude / 0.05) or Vector3.zero
+		pcall(function() r.AssemblyLinearVelocity = Vector3.new(v.X, vy, v.Z) end)
+		RunService.Heartbeat:Wait()
+	end
+	if h then pcall(function() h:Move(Vector3.zero, false) end) end
+	local se = 0
+	while se < 2 and state.Delivered < st and state.Carrying and not state.Cancel do
+		se += RunService.Heartbeat:Wait()
+	end
+	if state.Carrying and state.Delivered < st and not state.Cancel then
+		task.wait(0.2)
+		dropEgg()
+		local w = 0
+		while state.Delivered < st and w < 1 do w += RunService.Heartbeat:Wait() end
+	end
+	return state.Delivered >= st
+end
+
+-- ============================================================
+-- INSTANT TP
+-- ============================================================
+local stealClone = nil
+local function dropClone()
+	local cp = stealClone
+	stealClone = nil
+	if cp then pcall(function() cp:Destroy() end) end
+end
+
+local function postClone()
+	dropClone()
+	local ch = localPlayer.Character
+	if not ch then return end
+	local was = ch.Archivable
+	ch.Archivable = true
+	local cp = ch:Clone()
+	ch.Archivable = was
+	if cp then
+		for _, d in ipairs(cp:GetDescendants()) do
+			if d:IsA("LuaSourceContainer") or d:IsA("Humanoid") then
+				pcall(function() d:Destroy() end)
+			elseif d:IsA("BasePart") then
+				d.Anchored = true d.Collide = false
+				d.CanTouch = false d.CanQuery = false
+			end
+		end
+		cp.Name = "Clone"
+		cp.Parent = workspace
+		stealClone = cp
+	end
+end
+
+local function instantTP(uid)
+	local st = os.clock()
+	local lineX, lineY = lineInfo()
+	local r = root()
+	if not r then return false end
+	local lz = math.clamp(r.Position.Z, -425, -300)
+	local ld = Vector3.new(lineX + CFG.LandOffset, lineY + 3.35, lz)
+	local hS = math.max(walkSpeed() * CFG.HopRatio, CFG.HopMin)
+	local hY = r.Position.Y + CFG.HopLift
+	local x = r.Position.X
+	local rt = 0
+	local rc = frozenCamera()
+	state.ReleaseCamera = rc
+	pcall(postClone)
+	fpsOn()
+	while x - hS > ld.X and not state.Cancel do
+		if not state.Carrying then
+			if not regrab(uid) then break end
+			local cr = root()
+			if cr then x = math.min(x, cr.Position.X) end
+			continue
+		end
+		local nx = x - hS
+		status(string.format("TP: pulando pra casa, X %d", math.floor(nx)))
+		local pb = state.PulledAt
+		local hl = 0
+		while hl < CFG.HopGap do
+			place(Vector3.new(nx, hY, lz))
+			hl += RunService.Heartbeat:Wait()
+		end
+		local ck = root()
+		local pl = state.PulledAt > pb or (ck ~= nil and (ck.Position.X - nx > 10 or ck.AssemblyLinearVelocity.Magnitude > 150))
+		if pl and state.Carrying and not state.Cancel then
+			rt += 1
+			CFG.HopGap = math.min(CFG.HopGapMax, CFG.HopGap + 0.02)
+			if rt > CFG.HopRetries then break end
+			status(string.format("TP: puxado, retry %d/%d", rt, CFG.HopRetries))
+			local s = 0
+			while s < 0.12 and not state.Cancel do
+				place(Vector3.new(x, hY, lz))
+				s += RunService.Heartbeat:Wait()
+			end
+		else
+			x = nx
+			CFG.HopGap = math.max(CFG.HopGapMin, CFG.HopGap - 0.01)
+		end
+	end
+	status("TP: pousando")
+	ld = Vector3.new(ld.X, groundY(ld, ld.Y), ld.Z)
+	local function land()
+		local cr = root()
+		if cr and cr.Position.X <= ld.X + 1 and cr.Position.Y > ld.Y - 25 then
+			pcall(function() cr.AssemblyLinearVelocity = Vector3.zero end)
+			return
+		end
+		place(ld)
+	end
+	land()
+	for at = 1, 3 do
+		local s = 0
+		while s < CFG.LandSettle and not state.Cancel do s += RunService.Heartbeat:Wait() end
+		local lnd = root()
+		if state.Carrying and lnd and (lnd.Position.X - ld.X > 12 or lnd.Position.Y < ld.Y - 25) then
+			status("TP: retry de pouso " .. at)
+			land()
+		else break end
+	end
+	dropClone()
+	if state.Carrying and not state.Cancel then
+		local dl = 0
+		while dl < CFG.DropDelay do dl += RunService.Heartbeat:Wait() end
+		status("TP: largando o ovo")
+		dropEgg()
+		local w = 0
+		while state.Carrying and w < 1 and not state.Cancel do w += RunService.Heartbeat:Wait() end
+		local cr = root()
+		if cr then
+			pcall(function()
+				cr.AssemblyLinearVelocity = Vector3.zero
+				cr.AssemblyAngularVelocity = Vector3.zero
+			end)
+		end
+		rc()
+		dropClone()
+		status("TP: pegando de volta")
+		if not grab(uid, 3) and not regrab(uid) then
+			fpsOff()
+			status("Não conseguiu pegar o ovo")
+			return false
+		end
+		dropClone()
+	end
+	rc()
+	local ok = false
+	if state.Carrying then ok = runHome(lineX, lz) end
+	fpsOff()
+	return ok or state.Delivered >= st
+end
+
+local function doStealSync(uid, info)
+	if state.Busy then return false end
+	state.Busy = true
+	state.Cancel = false
+	local ok = pcall(function()
+		status("Procurando ovo")
+		local e = eggPosition(uid)
+		if not e then status("Ovo sumiu") return end
+		if state.Carrying and state.Uid ~= uid then
+			dropEgg()
+			local w = 0
+			while state.Carrying and w < 1 do w += RunService.Heartbeat:Wait() end
+		end
+		fpsOn()
+		status("Indo até o ovo")
+		if not runToEgg(uid, e) then
+			fpsOff() status("Não conseguiu chegar") return
+		end
+		status("Pegando ovo")
+		if not grab(uid, 4) then
+			fpsOff() status("Ovo resistiu") return
+		end
+		local delivered = instantTP(uid)
+		status(delivered and "Entregue!" or "Falha na entrega")
+		if delivered then STATS.Ovos += 1 end
+	end)
+	fpsOff()
+	dropClone()
+	if state.ReleaseCamera then pcall(state.ReleaseCamera) state.ReleaseCamera = nil end
+	state.Busy = false
+	return ok
+end
+
+-- ============================================================
+-- PLACE
+-- ============================================================
+local PLACE = { Running = false, Token = 0, NextTry = 0, FailCount = 0 }
+local placeBlacklist = {}
+
+local function ownPlot()
+	local p = nil
+	pcall(function()
+		local ps = workspace:FindFirstChild("Plots")
+		if not ps then return end
+		for _, pl in ipairs(ps:GetChildren()) do
+			local s = pl:FindFirstChild("PlotSign")
+			s = s and s:FindFirstChild("PlayerPlotSign")
+			s = s and s:FindFirstChild("Frame")
+			local n = s and s:FindFirstChild("PlayerName")
+			if n and n:IsA("TextLabel") then
+				local t = string.lower(n.Text)
+				if t == string.lower(localPlayer.Name) or t == string.lower(localPlayer.DisplayName) then
+					p = pl break
+				end
+			end
+		end
+	end)
+	return p
+end
+
+local function penAnchor()
+	local p = ownPlot()
+	if not p then return nil end
+	local tu = p:FindFirstChild("ToUpdate")
+	local sp = tu and tu:FindFirstChild("StarterPen") or p:FindFirstChild("CenterPoint")
+	if not sp then return nil end
+	local ok, cf = pcall(function()
+		return sp:IsA("Model") and sp:GetPivot() or sp.CFrame
+	end)
+	return ok and cf.Position or nil
+end
+
+local function waitNearAnchor(timeout)
+	local an = penAnchor()
+	if not an then return false end
+	local st = os.clock()
+	while os.clock() - st < (timeout or 2) do
+		local r = root()
+		if r and (r.Position - an).Magnitude < 15 then return true end
+		RunService.Heartbeat:Wait()
+	end
+	return false
+end
+
+local function tryPlace(uid)
+	if not PLACE.Running then return false end
+	local rf = remote("RF/EggWorld/AskPlaceEgg")
+	if not rf or not rf:IsA("RemoteFunction") then return false end
+	local ch = localPlayer.Character
+	local h = ch and ch:FindFirstChildOfClass("Humanoid")
+	if h and ch:FindFirstChildWhichIsA("Tool") then
+		pcall(function() h:UnequipTools() end)
+		task.wait(0.05)
+	end
+	local w = remote("RF/EggWorld/AskWearTool")
+	if w then
+		local okW = pcall(function() w:InvokeServer(uid) end)
+		if not okW then return false end
+	end
+	task.wait(0.25)
+	if not PLACE.Running then return false end
+	local ok, res = pcall(function()
+		return rf:InvokeServer({
+			Uid = uid,
+			LocalCFrame = CFrame.new(math.random(-20, 20), -0.5, math.random(4, 30)),
+		})
+	end)
+	return ok and res ~= false
+end
+
+task.spawn(function()
+	while true do
+		task.wait(30)
+		if next(placeBlacklist) ~= nil then placeBlacklist = {} end
+	end
+end)
+
+local function placeTick()
+	if not PLACE.Running then return false end
+	if state.Busy or state.Carrying then return false end
+	if os.clock() < (PLACE.NextTry or 0) then return false end
+	local indexed = getIndexedSet()
+	local inv = readInventory()
+	local cs = {}
+	for uid, rec in pairs(inv) do
+		if placeBlacklist[uid] == nil and rec.Placement == nil then
+			local cat = tostring(rec.AssetCategory or "")
+			if AUTO_PLACE_MODE == "Index" then
+				if not indexed[cat] then cs[#cs + 1] = { Uid = uid, Category = cat } end
+			else
+				local info = describeRecord(cat, rec)
+				if passFilter(info) or FILTER.Mode == "Off" then
+					cs[#cs + 1] = { Uid = uid, Category = cat }
+				end
+			end
+		end
+	end
+	if #cs == 0 then
+		PLACE.NextTry = os.clock() + 5
+		if PLACE.Running then status("Acabaram os ovos") end
+		return false
+	end
+	local an = penAnchor()
+	local r = root()
+	if an and r and (r.Position - an).Magnitude > 12 then
+		place(an + Vector3.new(0, 3, 0))
+		waitNearAnchor(2)
+	end
+	local pl = 0
+	for _, e in ipairs(cs) do
+		if pl >= 3 then break end
+		if not PLACE.Running then break end
+		if tryPlace(e.Uid) then
+			pl += 1
+			PLACE.FailCount = 0
+			status("Colocando ovo")
+		else
+			PLACE.FailCount += 1
+			if PLACE.FailCount >= 3 then placeBlacklist[e.Uid] = true end
+		end
+		task.wait(0.35)
+	end
+	PLACE.NextTry = os.clock() + 1
+	return pl > 0
+end
+
+local function startPlace()
+	if PLACE.Running then return end
+	PLACE.Running = true
+	PLACE.Token += 1
+	PLACE.NextTry = 0
+	PLACE.FailCount = 0
+	local tk = PLACE.Token
+	task.spawn(function()
+		while PLACE.Running and tk == PLACE.Token do
+			pcall(placeTick)
+			task.wait(0.5)
+		end
+	end)
+end
+
+local function stopPlace()
+	PLACE.Running = false
+	PLACE.Token += 1
+	PLACE.NextTry = 0
+	PLACE.FailCount = 0
+end
+
+-- ============================================================
+-- AUTO
+-- ============================================================
+local AUTO = { Running = false, Token = 0 }
+
+local function pickBest()
+	local infos = {}
+	for _, r in ipairs(snapshot()) do
+		local info = describe(r)
+		if passFilter(info) then infos[#infos + 1] = info end
+	end
+	if #infos == 0 then return nil end
+	table.sort(infos, function(a, b)
+		if a.Value ~= b.Value then return a.Value > b.Value end
+		return a.Rarity > b.Rarity
+	end)
+	return infos[1]
+end
+
+local function pickBestIndex()
+	local indexed = getIndexedSet()
+	local infos = {}
+	for _, r in ipairs(snapshot()) do
+		local info = describe(r)
+		if not indexed[info.Category] and passFilter(info) then infos[#infos + 1] = info end
+	end
+	if #infos == 0 then return nil end
+	table.sort(infos, function(a, b)
+		if a.Value ~= b.Value then return a.Value > b.Value end
+		return a.Rarity > b.Rarity
+	end)
+	return infos[1]
+end
+
+local function autoLoop()
+	local tk = AUTO.Token
+	while AUTO.Running and tk == AUTO.Token do
+		if state.Busy then
+			task.wait(0.2)
+		else
+			local best
+			if AUTO_STEAL_MODE == "Index" then best = pickBestIndex() else best = pickBest() end
+			if not best then
+				status(AUTO_STEAL_MODE == "Index" and "Index: sem novos" or "Sem ovos")
+				task.wait(1)
+			else
+				status((AUTO_STEAL_MODE == "Index" and "Index: " or "Auto: ") .. tostring(best.Name))
+				doStealSync(best.Uid, best)
+				task.wait(0.3)
+			end
+		end
+	end
+end
+
+local function startAuto()
+	if AUTO.Running then return end
+	AUTO.Running = true
+	AUTO.Token += 1
+	state.Cancel = false
+	task.spawn(autoLoop)
+end
+
+local function stopAuto()
+	AUTO.Running = false
+	AUTO.Token += 1
+	state.Cancel = true
+end
+
+-- ============================================================
+-- TREADMILL
+-- ============================================================
+local TREAD = { Running = false, Token = 0, NextTry = 0, Riding = false, WatcherConn = nil }
+
+local function beltPart()
+	local p = ownPlot()
+	if not p then return nil end
+	local b = p:FindFirstChild("TreadmillBottom")
+	if b and b:IsA("BasePart") then return b end
+	local u = p:FindFirstChild("TreadmillUpgrade")
+	return u and u:FindFirstChildWhichIsA("BasePart") or nil
+end
+
+local function onBelt()
+	local b = beltPart()
+	local r = root()
+	if not b or not r then return false end
+	local lp = b.CFrame:PointToObjectSpace(r.Position)
+	local sx = b.Size.X / 2 + 2.5
+	local sz = b.Size.Z / 2 + 2.5
+	return math.abs(lp.X) <= sx and math.abs(lp.Z) <= sz and lp.Y >= -3 and lp.Y <= b.Size.Y / 2 + 10
+end
+
+local function askTreadmill()
+	local rf = remote("RF/Treadmill/AskWearStill")
+	if not rf or not rf:IsA("RemoteFunction") then return false, nil end
+	local ok, res = pcall(function() return rf:InvokeServer() end)
+	return ok, res
+end
+
+local function teleportToBelt(targetPos)
+	local r = root()
+	if not r then return false end
+	local char = localPlayer.Character
+	if not char then return false end
+	local h = char:FindFirstChildOfClass("Humanoid")
+	if h then h.PlatformStand = false h.Sit = false end
+	pcall(function()
+		r.CFrame = CFrame.new(targetPos) * CFrame.Angles(0, math.rad(90), 0)
+		r.AssemblyLinearVelocity = Vector3.zero
+		r.AssemblyAngularVelocity = Vector3.zero
+	end)
+	task.wait(0.15)
+	local r2 = root()
+	if not r2 then return false end
+	return (r2.Position - targetPos).Magnitude <= 5
+end
+
+local function treadmillLoop()
+	local tk = TREAD.Token
+	while TREAD.Running and tk == TREAD.Token do
+		if not state.Busy and not state.Carrying then
+			if not onBelt() then
+				if os.clock() >= TREAD.NextTry then
+					local b = beltPart()
+					if b then
+						local tg = b.Position + Vector3.new(0, b.Size.Y / 2 + 4, 0)
+						local arrived = false
+						for _ = 1, 3 do
+							if not TREAD.Running then break end
+							if teleportToBelt(tg) then arrived = true break end
+							task.wait(0.3)
+						end
+						if arrived then
+							task.wait(0.15)
+							if not onBelt() then teleportToBelt(tg) task.wait(0.15) end
+							if onBelt() then
+								local h = localPlayer.Character and localPlayer.Character:FindFirstChildOfClass("Humanoid")
+								if h then h.Sit = false h.PlatformStand = false end
+								local ok, res = askTreadmill()
+								TREAD.Riding = ok and res ~= false
+								TREAD.NextTry = os.clock() + (TREAD.Riding and 30 or 2)
+							else TREAD.NextTry = os.clock() + 1 end
+						else TREAD.NextTry = os.clock() + 1 end
+					else TREAD.NextTry = os.clock() + 2 end
+				end
+			else
+				if TREAD.Riding and os.clock() >= (TREAD.NextTry or 0) then
+					TREAD.NextTry = os.clock() + 15
+					task.spawn(function()
+						local ok, res = askTreadmill()
+						if TREAD.Running then TREAD.Riding = ok and res == true end
+					end)
+				end
+			end
+		end
+		task.wait(0.4)
+	end
+end
+
+local function treadWatcher()
+	if TREAD.WatcherConn then return end
+	TREAD.WatcherConn = RunService.Heartbeat:Connect(function()
+		if not TREAD.Running then return end
+		if TREAD.Riding and not onBelt() then
+			TREAD.Riding = false
+			TREAD.NextTry = 0
+		end
+	end)
+end
+
+local function stopTreadWatcher()
+	if TREAD.WatcherConn then TREAD.WatcherConn:Disconnect() TREAD.WatcherConn = nil end
+end
+
+local function startTreadmill()
+	if TREAD.Running then return end
+	TREAD.Running = true
+	TREAD.Riding = false
+	TREAD.NextTry = 0
+	TREAD.Token += 1
+	treadWatcher()
+	task.spawn(treadmillLoop)
+end
+
+local function stopTreadmill()
+	TREAD.Running = false
+	TREAD.Token += 1
+	TREAD.Riding = false
+	TREAD.NextTry = 0
+	stopTreadWatcher()
+	local rf = remote("RF/Treadmill/AskDoff")
+	if rf and rf:IsA("RemoteFunction") then pcall(function() rf:InvokeServer() end) end
+end
+
+-- ============================================================
+-- LOOP
+-- ============================================================
+local LOOP = { On = false }
+
+local function loopRun()
+	while LOOP.On do
+		if state.Busy or state.Carrying then
+			task.wait(1)
+		else
+			local hasEgg = false
+			for _, r in ipairs(snapshot()) do
+				local info = describe(r)
+				if passFilter(info) then hasEgg = true break end
+			end
+			if hasEgg then
+				if not AUTO.Running then
+					stopTreadmill()
+					startAuto()
+					status("Loop: roubando")
+				end
+			else
+				if AUTO.Running then stopAuto() task.wait(0.5) end
+				if not TREAD.Running then
+					startTreadmill()
+					status("Loop: esteira")
+				end
+			end
+			task.wait(1.5)
+		end
+	end
+end
+
+local function startLoop()
+	if LOOP.On then return end
+	if FILTER.Mode == "Off" then return false end
+	LOOP.On = true
+	task.spawn(loopRun)
+	return true
+end
+
+local function stopLoop()
+	LOOP.On = false
+	if AUTO.Running then stopAuto() end
+	if TREAD.Running then stopTreadmill() end
+end
+
+-- ============================================================
+-- UI HELPERS
+-- ============================================================
+local function parentGui()
+	if typeof(gethui) == "function" then
+		local ok, r = pcall(gethui)
+		if ok and typeof(r) == "Instance" then return r end
+	end
+	local pg = localPlayer:FindFirstChildOfClass("PlayerGui")
+	return pg or CoreGui
+end
+
+local function make(class, props)
+	local i = Instance.new(class)
+	for k, v in pairs(props or {}) do i[k] = v end
+	return i
+end
+
+local function corner(p, r)
+	make("UICorner", { CornerRadius = UDim.new(0, r or 8) }).Parent = p
+end
+
+local function stroke(p, color, thickness, transparency)
+	local s = make("UIStroke", {
+		Color = color or CONFIG.Red,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	})
+	s.Parent = p
+	return s
+end
+
+local function padding(p, all)
+	local u = make("UIPadding", {})
+	u.PaddingTop = UDim.new(0, all or 8)
+	u.PaddingBottom = UDim.new(0, all or 8)
+	u.PaddingLeft = UDim.new(0, all or 8)
+	u.PaddingRight = UDim.new(0, all or 8)
+	u.Parent = p
+	return u
+end
+
+local function animatedStroke(p, baseThickness)
+	local s = make("UIStroke", {
+		Color = Color3.fromRGB(255, 255, 255),
+		Thickness = baseThickness or 3,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	})
+	s.Parent = p
+	local g = make("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, CONFIG.Red),
+			ColorSequenceKeypoint.new(0.20, CONFIG.RedGlow),
+			ColorSequenceKeypoint.new(0.40, CONFIG.Red),
+			ColorSequenceKeypoint.new(0.60, CONFIG.RedSoft),
+			ColorSequenceKeypoint.new(0.80, CONFIG.Red),
+			ColorSequenceKeypoint.new(1.00, CONFIG.RedGlow),
+		}),
+		Rotation = 0,
+	})
+	g.Parent = s
+	task.spawn(function()
+		local rot = 0
+		local t = 0
+		local hue = 0
+		local base = baseThickness or 3
+		while s.Parent do
+			if NEON_MODE == "RGB" then
+				hue = (hue + 0.005) % 1
+				local c1 = Color3.fromHSV(hue, 1, 1)
+				local c2 = Color3.fromHSV((hue + 0.15) % 1, 1, 1)
+				g.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0.00, c1),
+					ColorSequenceKeypoint.new(0.25, c2),
+					ColorSequenceKeypoint.new(0.50, c1),
+					ColorSequenceKeypoint.new(0.75, c2),
+					ColorSequenceKeypoint.new(1.00, c1),
+				})
+			else
+				local cfg = CONFIG.NeonColors[NEON_MODE] or CONFIG.NeonColors.Red
+				s.Color = cfg.main
+				g.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0.00, cfg.main),
+					ColorSequenceKeypoint.new(0.20, cfg.glow),
+					ColorSequenceKeypoint.new(0.40, cfg.main),
+					ColorSequenceKeypoint.new(0.60, cfg.glow),
+					ColorSequenceKeypoint.new(0.80, cfg.main),
+					ColorSequenceKeypoint.new(1.00, cfg.glow),
+				})
+			end
+			rot = (rot + 6) % 360
+			t = t + 0.1
+			local pulse = base + (math.sin(t) * 0.5 + 0.5) * 2.0 - 0.5
+			s.Thickness = pulse
+			g.Rotation = rot
+			task.wait(0.03)
+		end
+	end)
+	return s, g
+end
+
+local function externalGlow(parent, size)
+	local cfg = CONFIG.NeonColors[NEON_MODE] or CONFIG.NeonColors.Red
+	local g = make("Frame", {
+		Size = UDim2.new(1, size or 20, 1, size or 20),
+		Position = UDim2.new(0, -(size or 20) / 2, 0, -(size or 20) / 2),
+		BackgroundColor3 = cfg.main,
+		BackgroundTransparency = 0.75,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = parent,
+	})
+	corner(g, 22)
+	task.spawn(function()
+		local t = 0
+		local hue = 0
+		while g.Parent do
+			t = t + 0.08
+			if NEON_MODE == "RGB" then
+				hue = (hue + 0.01) % 1
+				g.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+			else
+				local cfg2 = CONFIG.NeonColors[NEON_MODE] or CONFIG.NeonColors.Red
+				g.BackgroundColor3 = cfg2.main
+			end
+			g.BackgroundTransparency = 0.62 + (math.sin(t) * 0.5 + 0.5) * 0.18
+			task.wait(0.04)
+		end
+	end)
+	return g
+end
+
+local function animatedText(t)
+	local g = make("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, CONFIG.RedSoft),
+			ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.66, CONFIG.RedSoft),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
+		}),
+		Rotation = 0,
+	})
+	g.Parent = t
+	task.spawn(function()
+		local rot = 0
+		while g.Parent do
+			rot = (rot + 4) % 360
+			g.Rotation = rot
+			task.wait(0.03)
+		end
+	end)
+	return g
+end
+
+-- ============================================================
+-- ESP + INDEX
+-- ============================================================
+local ESP = { Running = false, Token = 0, Billboard = nil, Host = nil, Icon = nil, Name = nil, Rarity = nil }
+local espGui = nil
+
+local function espParent()
+	if espGui then return espGui end
+	espGui = Instance.new("ScreenGui")
+	espGui.Name = "CroksPremiumESP"
+	espGui.ResetOnSpawn = false
+	espGui.IgnoreGuiInset = true
+	espGui.DisplayOrder = 999998
+	espGui.Parent = parentGui()
+	return espGui
+end
+
+local function makeESP()
+	if ESP.Billboard then return end
+	local host = make("Part", {
+		Name = "ESPAnchor", Size = Vector3.new(0.1, 0.1, 0.1),
+		Transparency = 1, CanCollide = false, CanTouch = false,
+		CanQuery = false, Anchored = true, Massless = true,
+		Parent = workspace,
+	})
+	ESP.Host = host
+	local bb = make("BillboardGui", {
+		Name = "EggESP", Size = UDim2.fromOffset(140, 90),
+		StudsOffset = Vector3.new(0, 4, 0), AlwaysOnTop = true,
+		LightInfluence = 0, MaxDistance = math.huge,
+		Adornee = host, Parent = espParent(),
+	})
+	ESP.Billboard = bb
+	local frame = make("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = bb })
+	local icon = make("ImageLabel", {
+		Size = UDim2.fromOffset(64, 64), Position = UDim2.new(0.5, -32, 0, 0),
+		BackgroundTransparency = 1, Image = "", ScaleType = Enum.ScaleType.Fit, Parent = frame,
+	})
+	ESP.Icon = icon
+	local function mkLine(pos, size, ts)
+		local lbl = make("TextLabel", {
+			Size = size, Position = pos, BackgroundTransparency = 1,
+			Font = Enum.Font.GothamBold, TextSize = ts, TextColor3 = CONFIG.Red,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center, Text = "", Parent = frame,
+		})
+		local st = make("UIStroke", {
+			Thickness = 2, Color = Color3.new(0, 0, 0),
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		})
+		st.Parent = lbl
+		return lbl
+	end
+	ESP.Name = mkLine(UDim2.new(0, 0, 0, 64), UDim2.new(1, 0, 0, 14), 12)
+	ESP.Rarity = mkLine(UDim2.new(0, 0, 0, 77), UDim2.new(1, 0, 0, 12), 10)
+end
+
+local function destroyESP()
+	if ESP.Host then ESP.Host:Destroy() ESP.Host = nil end
+	if ESP.Billboard then ESP.Billboard:Destroy() ESP.Billboard = nil end
+end
+
+local espScanAt = 0
+local function espTick()
+	if not ESP.Running then return end
+	if os.clock() - espScanAt < 1 then return end
+	espScanAt = os.clock()
+	local infos = {}
+	for _, r in ipairs(snapshot()) do
+		local info = describe(r)
+		if passFilter(info) then
+			info.CFrame = r.BottomCFrame
+			infos[#infos + 1] = info
+		end
+	end
+	if #infos == 0 then
+		if ESP.Billboard then ESP.Billboard.Enabled = false end
+		return
+	end
+	table.sort(infos, function(a, b)
+		if a.Value ~= b.Value then return a.Value > b.Value end
+		return a.Rarity > b.Rarity
+	end)
+	local best = infos[1]
+	makeESP()
+	ESP.Billboard.Enabled = true
+	ESP.Host.CFrame = CFrame.new(best.CFrame.Position + Vector3.new(0, 3, 0))
+	local iconUrl = best.PetIcon
+	if iconUrl == "" then iconUrl = best.EggIcon end
+	if iconUrl ~= "" then
+		ESP.Icon.Visible = true
+		ESP.Icon.Image = iconUrl
+	else ESP.Icon.Visible = false end
+	local r = root()
+	local dist = r and (r.Position - best.CFrame.Position).Magnitude or 0
+	ESP.Name.Text = best.Name
+	ESP.Rarity.Text = "[" .. FILTER.RarityNames[best.Rarity + 1]:gsub("%+$", "") .. "] "
+		.. formatVal(best.Value) .. " • " .. formatDist(dist)
+end
+
+local function startESP()
+	if ESP.Running then return end
+	ESP.Running = true
+	ESP.Token += 1
+	local tk = ESP.Token
+	task.spawn(function()
+		while ESP.Running and tk == ESP.Token do
+			pcall(espTick)
+			task.wait(0.5)
+		end
+	end)
+end
+
+local function stopESP()
+	ESP.Running = false
+	ESP.Token += 1
+	destroyESP()
+end
+
+local INDEX = { Running = false, Token = 0, Boards = {} }
+local indexGui = nil
+
+local function indexParent()
+	if indexGui then return indexGui end
+	indexGui = Instance.new("ScreenGui")
+	indexGui.Name = "CroksPremiumIndexESP"
+	indexGui.ResetOnSpawn = false
+	indexGui.IgnoreGuiInset = true
+	indexGui.DisplayOrder = 999997
+	indexGui.Parent = parentGui()
+	return indexGui
+end
+
+local function makeIndexBoard(uid)
+	local host = make("Part", {
+		Name = "IndexAnchor_" .. uid, Size = Vector3.new(0.1, 0.1, 0.1),
+		Transparency = 1, CanCollide = false, CanTouch = false,
+		CanQuery = false, Anchored = true, Massless = true, Parent = workspace,
+	})
+	local bb = make("BillboardGui", {
+		Name = "IndexESP", Size = UDim2.fromOffset(120, 80),
+		StudsOffset = Vector3.new(0, 3.5, 0), AlwaysOnTop = true,
+		LightInfluence = 0, MaxDistance = math.huge,
+		Adornee = host, Parent = indexParent(),
+	})
+	local frame = make("Frame", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Parent = bb })
+	local icon = make("ImageLabel", {
+		Size = UDim2.fromOffset(48, 48), Position = UDim2.new(0.5, -24, 0, 0),
+		BackgroundTransparency = 1, Image = "", ScaleType = Enum.ScaleType.Fit, Parent = frame,
+	})
+	local function mkLine(pos, size, ts)
+		local lbl = make("TextLabel", {
+			Size = size, Position = pos, BackgroundTransparency = 1,
+			Font = Enum.Font.GothamBold, TextSize = ts, TextColor3 = CONFIG.Red,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center, Text = "", Parent = frame,
+		})
+		local st = make("UIStroke", {
+			Thickness = 2, Color = Color3.new(0, 0, 0),
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		})
+		st.Parent = lbl
+		return lbl
+	end
+	local nameLbl = mkLine(UDim2.new(0, 0, 0, 48), UDim2.new(1, 0, 0, 12), 11)
+	local rarityLbl = mkLine(UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 11), 9)
+	return { host = host, billboard = bb, icon = icon, name = nameLbl, rarity = rarityLbl }
+end
+
+local function destroyIndexBoard(board)
+	if board.host then board.host:Destroy() end
+	if board.billboard then board.billboard:Destroy() end
+end
+
+local indexScanAt = 0
+local function indexTick()
+	if not INDEX.Running then return end
+	if os.clock() - indexScanAt < 1 then return end
+	indexScanAt = os.clock()
+	local seen = {}
+	local count = 0
+	local rp = root()
+
+	local currentArea = nil
+	if INDEX_ESP_MODE == "Atual" and rp then
+		local snap = snapshot()
+		local closest, minDist = nil, math.huge
+		for _, rec in ipairs(snap) do
+			local d = (rec.BottomCFrame.Position - rp.Position).Magnitude
+			if d < minDist then minDist = d closest = rec end
+		end
+		if closest then currentArea = tostring(closest.AreaId or "Field") end
+	end
+
+	for _, r in ipairs(snapshot()) do
+		if count >= MAX_INDEX_BOARDS then break end
+		local areaId = tostring(r.AreaId or "Field")
+		if INDEX_ESP_MODE == "Atual" and currentArea and areaId ~= currentArea then continue end
+		local info = describe(r)
+		if passFilter(info) and r.BottomCFrame then
+			seen[info.Uid] = true
+			count += 1
+			local board = INDEX.Boards[info.Uid]
+			if not board then
+				board = makeIndexBoard(info.Uid)
+				INDEX.Boards[info.Uid] = board
+			end
+			board.billboard.Enabled = true
+			board.host.CFrame = CFrame.new(r.BottomCFrame.Position + Vector3.new(0, 2.5, 0))
+			local iconUrl = info.PetIcon
+			if iconUrl == "" then iconUrl = info.EggIcon end
+			if iconUrl ~= "" then
+				board.icon.Visible = true
+				board.icon.Image = iconUrl
+			else board.icon.Visible = false end
+			board.name.Text = info.Name
+			local dist = rp and (rp.Position - r.BottomCFrame.Position).Magnitude or 0
+			board.rarity.Text = "[" .. FILTER.RarityNames[info.Rarity + 1]:gsub("%+$", "") .. "] "
+				.. formatDist(dist)
+		end
+	end
+
+	for uid, board in pairs(INDEX.Boards) do
+		if not seen[uid] then
+			destroyIndexBoard(board)
+			INDEX.Boards[uid] = nil
+		end
+	end
+end
+
+local function startIndexESP()
+	if INDEX.Running then return end
+	INDEX.Running = true
+	INDEX.Token += 1
+	local tk = INDEX.Token
+	task.spawn(function()
+		while INDEX.Running and tk == INDEX.Token do
+			pcall(indexTick)
+			task.wait(0.5)
+		end
+	end)
+end
+
+local function stopIndexESP()
+	INDEX.Running = false
+	INDEX.Token += 1
+	for uid, board in pairs(INDEX.Boards) do
+		destroyIndexBoard(board)
+	end
+	table.clear(INDEX.Boards)
+	if indexGui then pcall(function() indexGui:Destroy() end) indexGui = nil end
+end
+
+-- ============================================================
+-- NOTIFICAÇÕES
+-- ============================================================
+local NOTIF = { Gui = nil, Ativos = {} }
+
+local function notifBuild()
+	if NOTIF.Gui then return end
+	NOTIF.Gui = Instance.new("ScreenGui")
+	NOTIF.Gui.Name = "CroksHubNotif"
+	NOTIF.Gui.ResetOnSpawn = false
+	NOTIF.Gui.IgnoreGuiInset = true
+	NOTIF.Gui.DisplayOrder = 1000001
+	NOTIF.Gui.Parent = parentGui()
+end
+
+local function notif(text, tipo, dur)
+	notifBuild()
+	dur = dur or 3
+	tipo = tipo or "info"
+	log(text)
+	local cor = tipo == "success" and CONFIG.Success
+		or tipo == "error" and CONFIG.Danger
+		or tipo == "warn" and CONFIG.Warn
+		or CONFIG.Red
+	local frame = make("Frame", {
+		Size = UDim2.fromOffset(260, 48),
+		Position = UDim2.new(1, 300, 0, 20),
+		BackgroundColor3 = CONFIG.Bg2, BorderSizePixel = 0, Parent = NOTIF.Gui,
+	})
+	corner(frame, 8)
+	stroke(frame, cor, 1.5)
+	make("Frame", {
+		Size = UDim2.new(0, 3, 1, -10), Position = UDim2.new(0, 7, 0, 5),
+		BackgroundColor3 = cor, BorderSizePixel = 0, Parent = frame,
+	})
+	make("Frame", {
+		Size = UDim2.fromOffset(8, 8), Position = UDim2.new(0, 20, 0.5, -4),
+		BackgroundColor3 = cor, BorderSizePixel = 0, Parent = frame,
+	})
+	make("TextLabel", {
+		Size = UDim2.new(1, -54, 1, 0), Position = UDim2.fromOffset(40, 0),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+		TextWrapped = true, Text = text, Parent = frame,
+	})
+	table.insert(NOTIF.Ativos, frame)
+	local idx = #NOTIF.Ativos
+	local yTarget = 20 + (idx - 1) * 56
+	TweenService:Create(frame, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+		Position = UDim2.new(1, -280, 0, yTarget),
+	}):Play()
+	task.delay(dur, function()
+		TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+			Position = UDim2.new(1, 300, 0, yTarget),
+		}):Play()
+		task.wait(0.3)
+		local i = table.find(NOTIF.Ativos, frame)
+		if i then table.remove(NOTIF.Ativos, i) end
+		frame:Destroy()
+		for n, f in ipairs(NOTIF.Ativos) do
+			if f.Parent then
+				local ny = 20 + (n - 1) * 56
+				TweenService:Create(f, TweenInfo.new(0.2), {
+					Position = UDim2.new(1, -280, 0, ny),
+				}):Play()
+			end
+		end
+	end)
+end
+
+-- ============================================================
+-- COMPONENTES
+-- ============================================================
+local function makeToggle(parent, label, default, onChanged)
+	local row = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = CONFIG.Bg4, BorderSizePixel = 0, Parent = parent,
+	})
+	corner(row, 6)
+	local rowStroke = stroke(row, CONFIG.Border, 1)
+	make("TextLabel", {
+		Size = UDim2.new(1, -70, 1, 0), Position = UDim2.fromOffset(12, 0),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 12,
+		TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+		Text = label, ZIndex = 5, Parent = row,
+	})
+	local track = make("Frame", {
+		Size = UDim2.fromOffset(44, 20), Position = UDim2.new(1, -54, 0.5, -10),
+		BackgroundColor3 = default and CONFIG.Red or Color3.fromRGB(70, 70, 85),
+		BorderSizePixel = 0, ZIndex = 5, Parent = row,
+	})
+	corner(track, 10)
+	local trackStroke = stroke(track, default and CONFIG.Red or CONFIG.Border, 1.5)
+	local knob = make("Frame", {
+		Size = UDim2.fromOffset(14, 14),
+		Position = default and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0,
+		ZIndex = 6, Parent = track,
+	})
+	corner(knob, 7)
+	local stateT = default
+	local btn = make("TextButton", {
+		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1,
+		Text = "", ZIndex = 10, Parent = row,
+	})
+	local function update(anim)
+		local info = TweenInfo.new(anim and 0.2 or 0, Enum.EasingStyle.Quart)
+		TweenService:Create(knob, info, {
+			Position = stateT and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+		}):Play()
+		TweenService:Create(track, info, {
+			BackgroundColor3 = stateT and CONFIG.Red or Color3.fromRGB(70, 70, 85),
+		}):Play()
+		trackStroke.Color = stateT and CONFIG.Red or CONFIG.Border
+		rowStroke.Color = stateT and CONFIG.Red or CONFIG.Border
+		row.BackgroundColor3 = stateT and CONFIG.RedDark or CONFIG.Bg4
+	end
+	btn.MouseButton1Click:Connect(function()
+		stateT = not stateT
+		update(true)
+		if onChanged then pcall(onChanged, stateT) end
+	end)
+	return {
+		Set = function(v, run)
+			stateT = v update(true)
+			if run and onChanged then pcall(onChanged, stateT) end
+		end,
+		Get = function() return stateT end,
+	}
+end
+
+local function makeSlider(parent, label, min, max, default, onChanged)
+	local row = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 42),
+		BackgroundColor3 = CONFIG.Bg4, BorderSizePixel = 0, Parent = parent,
+	})
+	corner(row, 6)
+	stroke(row, CONFIG.Border, 1)
+	make("TextLabel", {
+		Size = UDim2.new(1, -70, 0, 16), Position = UDim2.fromOffset(12, 4),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 12,
+		TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+		Text = label, ZIndex = 5, Parent = row,
+	})
+	local val = make("TextLabel", {
+		Size = UDim2.fromOffset(60, 16), Position = UDim2.new(1, -70, 0, 4),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 12,
+		TextColor3 = CONFIG.RedSoft, TextXAlignment = Enum.TextXAlignment.Right,
+		Text = tostring(default), ZIndex = 5, Parent = row,
+	})
+	local track = make("Frame", {
+		Size = UDim2.new(1, -24, 0, 6), Position = UDim2.fromOffset(12, 28),
+		BackgroundColor3 = Color3.fromRGB(30, 30, 40), BorderSizePixel = 0,
+		ZIndex = 5, Parent = row,
+	})
+	corner(track, 3)
+	local pct = (default - min) / (max - min)
+	local fill = make("Frame", {
+		Size = UDim2.new(pct, 0, 1, 0), BackgroundColor3 = CONFIG.Red,
+		BorderSizePixel = 0, ZIndex = 5, Parent = track,
+	})
+	corner(fill, 3)
+	local knob = make("Frame", {
+		Size = UDim2.fromOffset(14, 14), Position = UDim2.new(pct, -7, 0.5, -7),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255), BorderSizePixel = 0,
+		ZIndex = 7, Parent = track,
+	})
+	corner(knob, 7)
+	stroke(knob, CONFIG.Red, 2)
+	local dragging = false
+	local function uf(x)
+		local rel = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+		local v = math.floor(min + rel * (max - min) + 0.5)
+		fill.Size = UDim2.new(rel, 0, 1, 0)
+		knob.Position = UDim2.new(rel, -7, 0.5, -7)
+		val.Text = tostring(v)
+		if onChanged then pcall(onChanged, v) end
+	end
+	local btn = make("TextButton", {
+		Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+		Text = "", ZIndex = 10, Parent = track,
+	})
+	btn.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1
+			or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			uf(i.Position.X)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
+			or i.UserInputType == Enum.UserInputType.Touch) then
+			uf(i.Position.X)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1
+			or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+-- ============================================================
+-- KEYBINDS
+-- ============================================================
+local KEYBINDS = {
+	ToggleHub = Enum.KeyCode.RightShift,
+	AutoSteal = Enum.KeyCode.F1,
+	ESP       = Enum.KeyCode.F2,
+	Treadmill = Enum.KeyCode.F3,
+	Place     = Enum.KeyCode.F4,
+	Loop      = Enum.KeyCode.F5,
+}
+local KEY_ACTIONS = {}
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	for name, key in pairs(KEYBINDS) do
+		if key == input.KeyCode then
+			local fn = KEY_ACTIONS[name]
+			if fn then pcall(fn) end
+			break
+		end
+	end
+end)
+
+local function makeKeybind(parent, label, bindName)
+	local row = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 32),
+		BackgroundColor3 = CONFIG.Bg4, BorderSizePixel = 0, Parent = parent,
+	})
+	corner(row, 6)
+	stroke(row, CONFIG.Border, 1)
+	make("TextLabel", {
+		Size = UDim2.new(1, -80, 1, 0), Position = UDim2.fromOffset(12, 0),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 12,
+		TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+		Text = label, ZIndex = 5, Parent = row,
+	})
+	local keyBtn = make("TextButton", {
+		Size = UDim2.fromOffset(72, 22), Position = UDim2.new(1, -82, 0.5, -11),
+		BackgroundColor3 = Color3.fromRGB(30, 30, 40), BorderSizePixel = 0,
+		Font = Enum.Font.Code, TextSize = 10, TextColor3 = CONFIG.Text,
+		Text = KEYBINDS[bindName].Name, ZIndex = 6, Parent = row,
+	})
+	corner(keyBtn, 5)
+	stroke(keyBtn, CONFIG.Red, 1)
+	local listening = false
+	keyBtn.MouseButton1Click:Connect(function()
+		if listening then return end
+		listening = true
+		keyBtn.Text = "[...]"
+		keyBtn.TextColor3 = CONFIG.RedSoft
+	end)
+	UserInputService.InputBegan:Connect(function(input)
+		if listening and input.UserInputType == Enum.UserInputType.Keyboard then
+			listening = false
+			KEYBINDS[bindName] = input.KeyCode
+			keyBtn.Text = input.KeyCode.Name
+			keyBtn.TextColor3 = CONFIG.Text
+		end
+	end)
+end
+
+-- ============================================================
+-- UI PRINCIPAL
+-- ============================================================
+local W, H = 420, 300
+local SIDEBAR_W = 120
+
+local old = parentGui():FindFirstChild("CroksHub")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CroksHub"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999999
+gui.Parent = parentGui()
+
+local window = make("Frame", {
+	Size = UDim2.fromOffset(W, H),
+	Position = UDim2.new(0.5, -W / 2, 0.5, -H / 2),
+	BackgroundColor3 = CONFIG.Bg, BorderSizePixel = 0,
+	Active = true, Parent = gui,
+})
+corner(window, 12)
+externalGlow(window, 20)
+animatedStroke(window, 2.5)
+
+local inner = make("Frame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundColor3 = CONFIG.Bg, BorderSizePixel = 0,
+	ClipsDescendants = true, ZIndex = 1, Parent = window,
+})
+corner(inner, 12)
+
+local sidebar = make("Frame", {
+	Size = UDim2.new(0, SIDEBAR_W, 1, 0),
+	BackgroundColor3 = CONFIG.Bg2, BackgroundTransparency = 0.15,
+	BorderSizePixel = 0, ZIndex = 2, Parent = inner,
+})
+corner(sidebar, 12)
+
+local logoBox = make("Frame", {
+	Size = UDim2.new(1, -10, 0, 70),
+	Position = UDim2.fromOffset(5, 6),
+	BackgroundTransparency = 1, ZIndex = 3, Parent = sidebar,
+})
+
+local logoCircle = make("Frame", {
+	Size = UDim2.fromOffset(36, 36),
+	Position = UDim2.new(0.5, -18, 0, 0),
+	BackgroundColor3 = CONFIG.Bg, BorderSizePixel = 0,
+	ClipsDescendants = true, ZIndex = 5, Parent = logoBox,
+})
+corner(logoCircle, 18)
+stroke(logoCircle, CONFIG.Red, 1.5)
+make("ImageLabel", {
+	Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+	Image = CONFIG.LOGO_IMAGE, ScaleType = Enum.ScaleType.Crop,
+	ZIndex = 6, Parent = logoCircle,
+})
+
+local titleLbl = make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0, 40),
+	BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 15,
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	TextXAlignment = Enum.TextXAlignment.Center,
+	Text = "CROKS HUB", ZIndex = 3, Parent = logoBox,
+})
+animatedText(titleLbl)
+
+make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 0, 58),
+	BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 8,
+	TextColor3 = CONFIG.RedSoft, TextXAlignment = Enum.TextXAlignment.Center,
+	Text = "◆ PREMIUM ◆", ZIndex = 3, Parent = logoBox,
+})
+
+local statusBox = make("Frame", {
+	Size = UDim2.new(1, -14, 0, 14), Position = UDim2.fromOffset(7, 78),
+	BackgroundTransparency = 1, ZIndex = 3, Parent = sidebar,
+})
+make("Frame", {
+	Size = UDim2.fromOffset(5, 5), Position = UDim2.new(0, 0, 0.5, -2),
+	BackgroundColor3 = CONFIG.Success, BorderSizePixel = 0, Parent = statusBox,
+})
+make("TextLabel", {
+	Size = UDim2.new(1, -12, 1, 0), Position = UDim2.fromOffset(12, 0),
+	BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 9,
+	TextColor3 = CONFIG.Success, TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "● ONLINE", Parent = statusBox,
+})
+
+make("Frame", {
+	Size = UDim2.new(1, -14, 0, 1), Position = UDim2.fromOffset(7, 96),
+	BackgroundColor3 = CONFIG.Border, BorderSizePixel = 0,
+	ZIndex = 3, Parent = sidebar,
+})
+
+local menuFrame = make("ScrollingFrame", {
+	Size = UDim2.new(1, -10, 1, -166),
+	Position = UDim2.fromOffset(5, 104),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 2,
+	ScrollBarImageColor3 = CONFIG.Red,
+	ScrollBarImageTransparency = 0.5,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ScrollingDirection = Enum.ScrollingDirection.Y,
+	ScrollingEnabled = true,
+	ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
+	ZIndex = 3,
+	Parent = sidebar,
+})
+make("UIListLayout", {
+	Padding = UDim.new(0, 4),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = menuFrame,
+})
+
+make("TextLabel", {
+	Size = UDim2.new(1, -10, 0, 12), Position = UDim2.new(0, 5, 1, -32),
+	BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 9,
+	TextColor3 = CONFIG.Muted, TextXAlignment = Enum.TextXAlignment.Center,
+	Text = CONFIG.Version, ZIndex = 3, Parent = sidebar,
+})
+make("TextLabel", {
+	Size = UDim2.new(1, -10, 0, 12), Position = UDim2.new(0, 5, 1, -20),
+	BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 8,
+	TextColor3 = CONFIG.RedSoft, TextXAlignment = Enum.TextXAlignment.Center,
+	Text = CONFIG.Discord, ZIndex = 3, Parent = sidebar,
+})
+
+local content = make("Frame", {
+	Size = UDim2.new(1, -SIDEBAR_W - 6, 1, -10),
+	Position = UDim2.fromOffset(SIDEBAR_W + 3, 5),
+	BackgroundColor3 = CONFIG.Bg2, BackgroundTransparency = 0.25,
+	BorderSizePixel = 0, ZIndex = 2, Parent = inner,
+})
+corner(content, 10)
+
+local headerBar = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 34),
+	BackgroundColor3 = CONFIG.Bg3, BorderSizePixel = 0,
+	ZIndex = 2, Parent = content,
+})
+corner(headerBar, 10)
+make("Frame", {
+	Size = UDim2.new(1, 0, 0, 10), Position = UDim2.new(0, 0, 1, -10),
+	BackgroundColor3 = CONFIG.Bg3, BorderSizePixel = 0,
+	ZIndex = 2, Parent = headerBar,
+})
+
+local headerTitleLbl = make("TextLabel", {
+	Size = UDim2.new(1, -120, 1, 0), Position = UDim2.fromOffset(12, 0),
+	BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 11,
+	TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "> MAIN", ZIndex = 3, Parent = headerBar,
+})
+
+local function headerBtn(icon, xoff, cor)
+	local b = make("TextButton", {
+		Size = UDim2.fromOffset(24, 24), Position = UDim2.new(1, xoff, 0.5, -12),
+		BackgroundColor3 = CONFIG.Bg4, BorderSizePixel = 0,
+		Font = Enum.Font.Code, TextSize = 12, TextColor3 = cor or CONFIG.Text,
+		Text = icon, AutoButtonColor = true, ZIndex = 3, Parent = headerBar,
+	})
+	corner(b, 5)
+	stroke(b, cor or CONFIG.Border, 1)
+	return b
+end
+
+local btnMin = headerBtn("—", -58, CONFIG.Text)
+local btnClose = headerBtn("✕", -30, CONFIG.Danger)
+
+local scroll = make("ScrollingFrame", {
+	Size = UDim2.new(1, -14, 1, -42),
+	Position = UDim2.fromOffset(7, 38),
+	BackgroundTransparency = 1, BorderSizePixel = 0,
+	ScrollBarThickness = 3, ScrollBarImageColor3 = CONFIG.Red,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ZIndex = 3, Parent = content,
+})
+local scrollList = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+	AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 3, Parent = scroll,
+})
+make("UIListLayout", {
+	Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = scrollList,
+})
+
+local PAGES = {}
+
+local function makeSection(parent, title, order)
+	local sec = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0), BackgroundColor3 = CONFIG.Bg3,
+		BorderSizePixel = 0, AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = order or 0, ZIndex = 3, Parent = parent,
+	})
+	corner(sec, 8)
+	stroke(sec, CONFIG.Border, 1)
+	padding(sec, 10)
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 11, TextColor3 = CONFIG.RedSoft,
+		TextXAlignment = Enum.TextXAlignment.Left, Text = "▸ " .. title,
+		ZIndex = 4, Parent = sec,
+	})
+	local body = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0), Position = UDim2.fromOffset(0, 22),
+		BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y,
+		ZIndex = 4, Parent = sec,
+	})
+	make("UIListLayout", {
+		Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = body,
+	})
+	return body
+end
+
+local function makePage(name, title)
+	local page = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y, Visible = false,
+		ZIndex = 3, Parent = scrollList,
+	})
+	make("UIListLayout", {
+		Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = page,
+	})
+	PAGES[name] = { frame = page, title = title }
+	return page
+end
+
+local function showPage(name)
+	for n, p in pairs(PAGES) do p.frame.Visible = (n == name) end
+	local p = PAGES[name]
+	if p then headerTitleLbl.Text = "> " .. string.upper(p.title) end
+	for _, btn in ipairs(menuFrame:GetChildren()) do
+		if btn:IsA("TextButton") then
+			local active = btn:GetAttribute("PageName") == name
+			local s = btn:FindFirstChildOfClass("UIStroke")
+			local indicator = btn:FindFirstChild("Frame")
+			if active then
+				TweenService:Create(btn, TweenInfo.new(0.2), {
+					BackgroundColor3 = CONFIG.Red,
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+				}):Play()
+				if s then s.Color = CONFIG.RedGlow s.Thickness = 1.5 end
+				if indicator then indicator.Visible = true end
+			else
+				TweenService:Create(btn, TweenInfo.new(0.2), {
+					BackgroundColor3 = CONFIG.Bg4,
+					TextColor3 = CONFIG.Text,
+				}):Play()
+				if s then s.Color = CONFIG.Border s.Thickness = 1 end
+				if indicator then indicator.Visible = false end
+			end
+		end
+	end
+end
+
+local function makeMenuButton(name, label, icon, order)
+	local btn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 32),
+		BackgroundColor3 = CONFIG.Bg4, BackgroundTransparency = 0,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "  " .. icon .. "  " .. tostring(label),
+		AutoButtonColor = false, LayoutOrder = order,
+		ZIndex = 4, Parent = menuFrame,
+	})
+	corner(btn, 6)
+	stroke(btn, CONFIG.Border, 1)
+	local indicator = make("Frame", {
+		Size = UDim2.new(0, 3, 0, 18), Position = UDim2.new(0, 3, 0.5, -9),
+		BackgroundColor3 = CONFIG.Red, BorderSizePixel = 0,
+		Visible = false, ZIndex = 5, Parent = btn,
+	})
+	corner(indicator, 2)
+	btn:SetAttribute("PageName", name)
+	btn.MouseButton1Click:Connect(function() showPage(name) end)
+	btn.MouseEnter:Connect(function()
+		if btn.BackgroundColor3 ~= CONFIG.Red then
+			TweenService:Create(btn, TweenInfo.new(0.2), {
+				BackgroundColor3 = CONFIG.BgHover,
+				TextColor3 = CONFIG.RedSoft,
+			}):Play()
+		end
+	end)
+	btn.MouseLeave:Connect(function()
+		if btn.BackgroundColor3 ~= CONFIG.Red then
+			TweenService:Create(btn, TweenInfo.new(0.2), {
+				BackgroundColor3 = CONFIG.Bg4,
+				TextColor3 = CONFIG.Text,
+			}):Play()
+		end
+	end)
+	return btn
+end
+
+makePage("main", "Main")
+makePage("predict", "Predict")
+makePage("funcoes", "Funções")
+makePage("config", "Config")
+makePage("visual", "Visual")
+makePage("logs", "Logs")
+makePage("credits", "Créditos")
+
+makeMenuButton("main", "Main", "◈", 1)
+makeMenuButton("predict", "Predict", "💰", 2)
+makeMenuButton("funcoes", "Funções", "⚡", 3)
+makeMenuButton("config", "Config", "⚙", 4)
+makeMenuButton("visual", "Visual", "👁", 5)
+makeMenuButton("logs", "Logs", "📜", 6)
+makeMenuButton("credits", "Créditos", "★", 7)
+
+-- MAIN
+do
+	local p = PAGES["main"].frame
+	local s1 = makeSection(p, "STATUS", 1)
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 11, TextColor3 = CONFIG.Text,
+		TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true,
+		Text = "> Croks Hub " .. CONFIG.Version .. "\n> By Kevin\n> " .. (KEY_STATE.IsAdmin and "👑 Admin" or "Usuário"),
+		ZIndex = 5, Parent = s1,
+	})
+	local s2 = makeSection(p, "AÇÕES RÁPIDAS", 2)
+	local actionsRow = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1,
+		ZIndex = 5, Parent = s2,
+	})
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = actionsRow,
+	})
+	local function quickBtn(label, cor, ordem, onClick)
+		local b = make("TextButton", {
+			Size = UDim2.new(0.5, -3, 1, 0), BackgroundColor3 = cor,
+			BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+			TextColor3 = Color3.fromRGB(255, 255, 255), Text = label,
+			AutoButtonColor = true, LayoutOrder = ordem,
+			ZIndex = 5, Parent = actionsRow,
+		})
+		corner(b, 6)
+		stroke(b, CONFIG.Red, 1)
+		b.MouseButton1Click:Connect(function() pcall(onClick) end)
+		return b
+	end
+	quickBtn("▶ INICIAR", CONFIG.Red, 1, function()
+		startAuto()
+		notif("Auto Steal iniciado", "success", 2)
+	end)
+	quickBtn("■ PARAR", CONFIG.Bg4, 2, function()
+		stopAuto() stopTreadmill() stopPlace() stopLoop()
+		notif("Tudo parado", "info", 2)
+	end)
+	local s3 = makeSection(p, "ESTATÍSTICAS", 3)
+	local function makeStatRow(key)
+		local row = make("Frame", {
+			Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
+			ZIndex = 5, Parent = s3,
+		})
+		make("TextLabel", {
+			Size = UDim2.new(0.5, 0, 1, 0), BackgroundTransparency = 1,
+			Font = Enum.Font.Code, TextSize = 11, TextColor3 = CONFIG.Muted,
+			TextXAlignment = Enum.TextXAlignment.Left, Text = key, ZIndex = 5, Parent = row,
+		})
+		local v = make("TextLabel", {
+			Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.new(0.5, 0, 0, 0),
+			BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 11,
+			TextColor3 = CONFIG.RedSoft, TextXAlignment = Enum.TextXAlignment.Right,
+			Text = "0", ZIndex = 5, Parent = row,
+		})
+		return v
+	end
+	local statOvos = makeStatRow("Ovos roubados")
+	local statTempo = makeStatRow("Tempo de uso")
+	task.spawn(function()
+		while gui.Parent do
+			statOvos.Text = tostring(STATS.Ovos)
+			statTempo.Text = formatTime(os.clock() - STATS.Inicio)
+			task.wait(1)
+		end
+	end)
+end
+
+-- PREDICT
+do
+	local p = PAGES["predict"].frame
+	local RARITY_C = {
+		[0] = Color3.fromRGB(200, 200, 200), [1] = Color3.fromRGB(180, 255, 180),
+		[2] = Color3.fromRGB(120, 200, 255), [3] = Color3.fromRGB(200, 130, 255),
+		[4] = Color3.fromRGB(255, 200, 80),  [5] = Color3.fromRGB(255, 120, 120),
+		[6] = Color3.fromRGB(255, 150, 220), [7] = Color3.fromRGB(255, 230, 100),
+		[8] = Color3.fromRGB(120, 255, 255), [9] = Color3.fromRGB(255, 100, 200),
+	}
+	local RARITY_N = {
+		[0]="Common", [1]="Uncommon", [2]="Rare", [3]="Epic",
+		[4]="Legendary", [5]="Mythic", [6]="Cosmic",
+		[7]="Secret", [8]="Eternal", [9]="Divine",
+	}
+	local VIEW_MODE = "Lista"
+
+	local s1 = makeSection(p, "BASE — OVOS COLOCADOS", 1)
+	local totalRow = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, ZIndex = 5, Parent = s1,
+	})
+	make("TextLabel", {
+		Size = UDim2.new(0.6, 0, 1, 0), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 12, TextColor3 = CONFIG.Muted,
+		TextXAlignment = Enum.TextXAlignment.Left, Text = "💰 Valor total:",
+		ZIndex = 5, Parent = totalRow,
+	})
+	local totalLbl = make("TextLabel", {
+		Size = UDim2.new(0.4, 0, 1, 0), Position = UDim2.new(0.6, 0, 0, 0),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 13,
+		TextColor3 = CONFIG.Red, TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "$0/s", ZIndex = 5, Parent = totalRow,
+	})
+	local countRow = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, ZIndex = 5, Parent = s1,
+	})
+	make("TextLabel", {
+		Size = UDim2.new(0.6, 0, 1, 0), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 11, TextColor3 = CONFIG.Muted,
+		TextXAlignment = Enum.TextXAlignment.Left, Text = "📦 Ovos colocados:",
+		ZIndex = 5, Parent = countRow,
+	})
+	local countLbl = make("TextLabel", {
+		Size = UDim2.new(0.4, 0, 1, 0), Position = UDim2.new(0.6, 0, 0, 0),
+		BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.RedSoft, TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "0", ZIndex = 5, Parent = countRow,
+	})
+	local refreshBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = CONFIG.RedDark,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = Color3.fromRGB(255, 255, 255), Text = "🔄 ATUALIZAR AGORA",
+		AutoButtonColor = true, ZIndex = 5, Parent = s1,
+	})
+	corner(refreshBtn, 6)
+	stroke(refreshBtn, CONFIG.Red, 1)
+	local viewBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = CONFIG.Bg4,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, Text = "🖼 MODO: LISTA",
+		AutoButtonColor = true, ZIndex = 5, Parent = s1,
+	})
+	corner(viewBtn, 6)
+	stroke(viewBtn, CONFIG.Border, 1)
+
+	local s2 = makeSection(p, "OVOS NA BASE", 2)
+	local listContainer = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 5, Parent = s2,
+	})
+	make("UIListLayout", {
+		Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = listContainer,
+	})
+	local gridScroll = make("ScrollingFrame", {
+		Size = UDim2.new(1, 0, 0, 290),
+		BackgroundTransparency = 1, BorderSizePixel = 0,
+		ScrollBarThickness = 3, ScrollBarImageColor3 = CONFIG.Red,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Visible = false, ZIndex = 5, Parent = s2,
+	})
+	local gridContainer = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 6, Parent = gridScroll,
+	})
+	make("UIGridLayout", {
+		CellSize = UDim2.fromOffset(88, 110),
+		CellPadding = UDim2.fromOffset(5, 5),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = gridContainer,
+	})
+
+	local function renderList()
+		for _, c in ipairs(listContainer:GetChildren()) do
+			if not c:IsA("UIListLayout") then c:Destroy() end
+		end
+		local data = scanBase()
+		if #data.List == 0 then
+			make("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1,
+				Font = Enum.Font.Code, TextSize = 10, TextColor3 = CONFIG.Muted,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Text = "  Nenhum ovo colocado", LayoutOrder = 1,
+				ZIndex = 5, Parent = listContainer,
+			})
+			return
+		end
+		for i = 1, math.min(10, #data.List) do
+			local egg = data.List[i]
+			local row = make("Frame", {
+				Size = UDim2.new(1, 0, 0, 22),
+				BackgroundColor3 = Color3.fromRGB(25, 25, 35),
+				BorderSizePixel = 0, LayoutOrder = i,
+				ZIndex = 5, Parent = listContainer,
+			})
+			corner(row, 4)
+			make("TextLabel", {
+				Size = UDim2.new(0.68, 0, 1, 0), Position = UDim2.fromOffset(6, 0),
+				BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 10,
+				TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Text = string.format("#%d  %s", i, egg.Name),
+				ZIndex = 6, Parent = row,
+			})
+			make("TextLabel", {
+				Size = UDim2.new(0.32, 0, 1, 0), Position = UDim2.new(0.68, 0, 0, 0),
+				BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 10,
+				TextColor3 = CONFIG.Red, TextXAlignment = Enum.TextXAlignment.Right,
+				Text = formatVal(egg.Value), ZIndex = 6, Parent = row,
+			})
+		end
+	end
+
+	local function renderGrid()
+		for _, c in ipairs(gridContainer:GetChildren()) do
+			if not c:IsA("UIGridLayout") then c:Destroy() end
+		end
+		local data = scanBase()
+		if #data.List == 0 then
+			make("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1,
+				Font = Enum.Font.Code, TextSize = 10, TextColor3 = CONFIG.Muted,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Text = "  Nenhum ovo colocado", LayoutOrder = 1,
+				ZIndex = 5, Parent = gridContainer,
+			})
+			return
+		end
+		for i, egg in ipairs(data.List) do
+			local rc = RARITY_C[egg.Rarity] or Color3.fromRGB(180, 180, 195)
+			local rn = RARITY_N[egg.Rarity] or "?"
+			local card = make("Frame", {
+				Size = UDim2.fromOffset(88, 110),
+				BackgroundColor3 = Color3.fromRGB(20, 20, 28),
+				BorderSizePixel = 0, LayoutOrder = i,
+				ZIndex = 6, Parent = gridContainer,
+			})
+			corner(card, 6)
+			stroke(card, rc, 1.5)
+			local iconFrame = make("Frame", {
+				Size = UDim2.new(1, -10, 0, 62),
+				Position = UDim2.fromOffset(5, 5),
+				BackgroundColor3 = Color3.fromRGB(10, 10, 15),
+				BorderSizePixel = 0, ZIndex = 7, Parent = card,
+			})
+			corner(iconFrame, 4)
+			local iconUrl = egg.PetIcon
+			if not iconUrl or iconUrl == "" then iconUrl = egg.EggIcon end
+			if iconUrl and iconUrl ~= "" then
+				make("ImageLabel", {
+					Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2),
+					BackgroundTransparency = 1, Image = iconUrl,
+					ScaleType = Enum.ScaleType.Fit, ZIndex = 8, Parent = iconFrame,
+				})
+			else
+				make("TextLabel", {
+					Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+					Font = Enum.Font.Code, TextSize = 24, TextColor3 = rc,
+					Text = "?", ZIndex = 8, Parent = iconFrame,
+				})
+			end
+			make("TextLabel", {
+				Size = UDim2.new(1, -6, 0, 14), Position = UDim2.fromOffset(3, 70),
+				BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 9,
+				TextColor3 = CONFIG.Text, TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Text = egg.Name, ZIndex = 7, Parent = card,
+			})
+			make("TextLabel", {
+				Size = UDim2.new(1, -6, 0, 12), Position = UDim2.fromOffset(3, 84),
+				BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 8,
+				TextColor3 = rc, TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Text = rn, ZIndex = 7, Parent = card,
+			})
+			make("TextLabel", {
+				Size = UDim2.new(1, -6, 0, 12), Position = UDim2.fromOffset(3, 95),
+				BackgroundTransparency = 1, Font = Enum.Font.Code, TextSize = 9,
+				TextColor3 = CONFIG.Red, TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Text = formatVal(egg.Value), ZIndex = 7, Parent = card,
+			})
+		end
+	end
+
+	local function refresh()
+		local data = scanBase()
+		totalLbl.Text = formatVal(data.Total)
+		countLbl.Text = tostring(data.Count) .. " ovos"
+		if VIEW_MODE == "Lista" then renderList() else renderGrid() end
+	end
+
+	refreshBtn.MouseButton1Click:Connect(function()
+		BASE_SCAN.At = 0
+		refresh()
+		notif("Base atualizada", "success", 1.5)
+	end)
+	viewBtn.MouseButton1Click:Connect(function()
+		VIEW_MODE = VIEW_MODE == "Lista" and "Grid" or "Lista"
+		if VIEW_MODE == "Lista" then
+			listContainer.Visible = true
+			gridScroll.Visible = false
+			viewBtn.Text = "🖼 MODO: LISTA"
+			viewBtn.BackgroundColor3 = CONFIG.Bg4
+		else
+			listContainer.Visible = false
+			gridScroll.Visible = true
+			viewBtn.Text = "📋 MODO: GRID"
+			viewBtn.BackgroundColor3 = CONFIG.RedDark
+		end
+		refresh()
+	end)
+	task.spawn(function()
+		while gui.Parent do
+			pcall(function()
+				local data = scanBase()
+				totalLbl.Text = formatVal(data.Total)
+				countLbl.Text = tostring(data.Count) .. " ovos"
+			end)
+			task.wait(3)
+		end
+	end)
+	refresh()
+end
+
+-- FUNÇÕES
+do
+	local p = PAGES["funcoes"].frame
+	local s1 = makeSection(p, "AUTO STEAL", 1)
+	makeToggle(s1, "Auto Steal", false, function(v)
+		if v then startAuto() notif("Auto Steal: ON", "success", 2)
+		else stopAuto() notif("Auto Steal: OFF", "info", 2) end
+	end)
+	makeToggle(s1, "Modo Index", false, function(v)
+		AUTO_STEAL_MODE = v and "Index" or "Melhor"
+		notif("Modo: " .. AUTO_STEAL_MODE, "info", 2)
+	end)
+	local s2 = makeSection(p, "FARM", 2)
+	makeToggle(s2, "Auto Treadmill", false, function(v)
+		if v then startTreadmill() notif("Treadmill: ON", "success", 2)
+		else stopTreadmill() notif("Treadmill: OFF", "info", 2) end
+	end)
+	makeToggle(s2, "Auto Place", false, function(v)
+		if v then placeBlacklist = {} startPlace() notif("Place: ON", "success", 2)
+		else stopPlace() notif("Place: OFF", "info", 2) end
+	end)
+	local loopToggle = makeToggle(s2, "Loop Auto", false, function(v)
+		if v then
+			local ok = startLoop()
+			if ok then notif("Loop: ON", "success", 2)
+			else loopToggle.Set(false) notif("Configure o filtro", "warn", 3) end
+		else stopLoop() notif("Loop: OFF", "info", 2) end
+	end)
+	local s3 = makeSection(p, "ESP", 3)
+	makeToggle(s3, "ESP Best Egg", false, function(v)
+		if v then startESP() notif("ESP: ON", "success", 2)
+		else stopESP() notif("ESP: OFF", "info", 2) end
+	end)
+	makeToggle(s3, "Index ESP", false, function(v)
+		if v then startIndexESP() notif("Index ESP: ON", "success", 2)
+		else stopIndexESP() notif("Index ESP: OFF", "info", 2) end
+	end)
+	local indexModeBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = CONFIG.Bg4,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, Text = "Index ESP: Todas",
+		AutoButtonColor = true, ZIndex = 5, Parent = s3,
+	})
+	corner(indexModeBtn, 6)
+	stroke(indexModeBtn, CONFIG.Border, 1)
+	indexModeBtn.MouseButton1Click:Connect(function()
+		INDEX_ESP_MODE = INDEX_ESP_MODE == "Todas" and "Atual" or "Todas"
+		indexModeBtn.Text = INDEX_ESP_MODE == "Todas"
+			and "Index ESP: Todas" or "Index ESP: Atual"
+		notif("Index ESP: " .. INDEX_ESP_MODE, "info", 2)
+	end)
+	local s4 = makeSection(p, "FILTRO", 4)
+	local filterBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = CONFIG.Bg4,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, Text = "Filtro: OFF",
+		AutoButtonColor = true, ZIndex = 5, Parent = s4,
+	})
+	corner(filterBtn, 6)
+	local filterStroke = stroke(filterBtn, CONFIG.Border, 1)
+	local valueContainer = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 70), BackgroundTransparency = 1,
+		Visible = false, ZIndex = 5, Parent = s4,
+	})
+	local valueBox = make("TextBox", {
+		Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, Text = "",
+		PlaceholderText = "Ex: 10m, 100k, 1b",
+		PlaceholderColor3 = CONFIG.Muted, ClearTextOnFocus = false,
+		ZIndex = 6, Parent = valueContainer,
+	})
+	corner(valueBox, 6)
+	stroke(valueBox, CONFIG.Border, 1)
+	local okValueBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 26), Position = UDim2.fromOffset(0, 34),
+		BackgroundColor3 = CONFIG.RedDark, BorderSizePixel = 0,
+		Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Text = "▶ APLICAR VALOR", AutoButtonColor = true,
+		ZIndex = 6, Parent = valueContainer,
+	})
+	corner(okValueBtn, 6)
+	stroke(okValueBtn, CONFIG.Red, 1)
+	local rarityContainer = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 70), BackgroundTransparency = 1,
+		Visible = false, ZIndex = 5, Parent = s4,
+	})
+	local rarityBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = Color3.fromRGB(30, 30, 40),
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, Text = "Raridade: Qualquer",
+		AutoButtonColor = true, ZIndex = 6, Parent = rarityContainer,
+	})
+	corner(rarityBtn, 6)
+	stroke(rarityBtn, CONFIG.Border, 1)
+	local okRarityBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 26), Position = UDim2.fromOffset(0, 34),
+		BackgroundColor3 = CONFIG.RedDark, BorderSizePixel = 0,
+		Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Text = "▶ APLICAR RARIDADE", AutoButtonColor = true,
+		ZIndex = 6, Parent = rarityContainer,
+	})
+	corner(okRarityBtn, 6)
+	stroke(okRarityBtn, CONFIG.Red, 1)
+	local modes = { "Off", "Value", "Rarity" }
+	local modeIdx = 1
+	local function applyFilterMode()
+		local m = modes[modeIdx]
+		FILTER.Mode = m
+		if m == "Off" then
+			filterBtn.Text = "Filtro: OFF"
+			filterBtn.BackgroundColor3 = CONFIG.Bg4
+			filterStroke.Color = CONFIG.Border
+			valueContainer.Visible = false
+			rarityContainer.Visible = false
+			FILTER.MinValue = 0
+			FILTER.MinRarity = 0
+		elseif m == "Value" then
+			filterBtn.Text = "Filtro: VALOR"
+			filterBtn.BackgroundColor3 = CONFIG.RedDark
+			filterStroke.Color = CONFIG.Red
+			valueContainer.Visible = true
+			rarityContainer.Visible = false
+		elseif m == "Rarity" then
+			filterBtn.Text = "Filtro: RARIDADE"
+			filterBtn.BackgroundColor3 = CONFIG.RedDark
+			filterStroke.Color = CONFIG.Red
+			valueContainer.Visible = false
+			rarityContainer.Visible = true
+		end
+	end
+	filterBtn.MouseButton1Click:Connect(function()
+		modeIdx = modeIdx % #modes + 1
+		applyFilterMode()
+		notif("Filtro: " .. modes[modeIdx], "info", 1.5)
+	end)
+	okValueBtn.MouseButton1Click:Connect(function()
+		local v = parseValue(valueBox.Text)
+		if v then
+			FILTER.MinValue = v
+			valueBox.Text = ""
+			valueBox.PlaceholderText = "Valor: " .. formatVal(v)
+			notif("Valor min: " .. formatVal(v), "success", 2)
+		else notif("Valor inválido", "error", 2) end
+	end)
+	rarityBtn.MouseButton1Click:Connect(function()
+		FILTER.MinRarity = (FILTER.MinRarity + 1) % #FILTER.RarityNames
+		rarityBtn.Text = "Raridade: " .. FILTER.RarityNames[FILTER.MinRarity + 1]
+	end)
+	okRarityBtn.MouseButton1Click:Connect(function()
+		notif("Raridade: " .. FILTER.RarityNames[FILTER.MinRarity + 1], "success", 2)
+	end)
+	applyFilterMode()
+end
+
+-- CONFIG
+do
+	local p = PAGES["config"].frame
+	local s1 = makeSection(p, "KEYBINDS", 1)
+	makeKeybind(s1, "Toggle Hub", "ToggleHub")
+	makeKeybind(s1, "Auto Steal", "AutoSteal")
+	makeKeybind(s1, "ESP", "ESP")
+	makeKeybind(s1, "Treadmill", "Treadmill")
+	makeKeybind(s1, "Place", "Place")
+	makeKeybind(s1, "Loop", "Loop")
+	local s2 = makeSection(p, "MODO PLACE", 2)
+	local placeBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = CONFIG.Bg4,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = CONFIG.Text, Text = "Place: Todos",
+		AutoButtonColor = true, ZIndex = 5, Parent = s2,
+	})
+	corner(placeBtn, 6)
+	stroke(placeBtn, CONFIG.Border, 1)
+	placeBtn.MouseButton1Click:Connect(function()
+		AUTO_PLACE_MODE = AUTO_PLACE_MODE == "Todos" and "Index" or "Todos"
+		placeBtn.Text = "Place: " .. AUTO_PLACE_MODE
+	end)
+	local s3 = makeSection(p, "KEY ATUAL", 3)
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 10, TextColor3 = CONFIG.RedSoft,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = KEY_STATE.IsAdmin and "👑 Admin" or (KEY_STATE.Key or "?"),
+		ZIndex = 5, Parent = s3,
+	})
+	local s4 = makeSection(p, "DISCORD", 4)
+	local discordBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = CONFIG.RedDark,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Text = "📋 COPIAR LINK", AutoButtonColor = true,
+		ZIndex = 5, Parent = s4,
+	})
+	corner(discordBtn, 6)
+	stroke(discordBtn, CONFIG.Red, 1)
+	discordBtn.MouseButton1Click:Connect(function()
+		if setclipboard then
+			setclipboard("https://" .. CONFIG.Discord)
+			notif("Link copiado!", "success", 2)
+		else notif("Discord: " .. CONFIG.Discord, "info", 4) end
+	end)
+end
+
+-- VISUAL
+do
+	local p = PAGES["visual"].frame
+	local s1 = makeSection(p, "SOBRE O TEMA", 1)
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 11, TextColor3 = CONFIG.Text,
+		TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true,
+		Text = "> Neon RGB animado\n> Escolha a cor do contorno",
+		ZIndex = 5, Parent = s1,
+	})
+	local s2 = makeSection(p, "CÂMERA", 2)
+	makeSlider(s2, "FOV", 70, 120, 70, function(v)
+		local cam = workspace.CurrentCamera
+		if cam then cam.FieldOfView = v end
+	end)
+	local s3 = makeSection(p, "COR DO NEON", 3)
+	local coresDisponiveis = { "Red", "Blue", "Black", "White", "RGB" }
+	local labelsCores = {
+		Red = "Vermelho", Blue = "Azul",
+		Black = "Cinza", White = "Branco", RGB = "🌈 RGB Animado",
+	}
+	local neonBtn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = CONFIG.RedDark,
+		BorderSizePixel = 0, Font = Enum.Font.Code, TextSize = 11,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Text = "Neon: " .. labelsCores[NEON_MODE],
+		AutoButtonColor = true, ZIndex = 5, Parent = s3,
+	})
+	corner(neonBtn, 6)
+	stroke(neonBtn, CONFIG.Red, 1)
+	neonBtn.MouseButton1Click:Connect(function()
+		local idx = 1
+		for i, c in ipairs(coresDisponiveis) do
+			if c == NEON_MODE then idx = i break end
+		end
+		idx = idx % #coresDisponiveis + 1
+		NEON_MODE = coresDisponiveis[idx]
+		neonBtn.Text = "Neon: " .. labelsCores[NEON_MODE]
+		local cfg = CONFIG.NeonColors[NEON_MODE] or CONFIG.NeonColors.Red
+		neonBtn.BackgroundColor3 = cfg.main
+		notif("Neon: " .. labelsCores[NEON_MODE], "success", 2)
+	end)
+end
+
+-- LOGS
+do
+	local p = PAGES["logs"].frame
+	local s1 = makeSection(p, "ATIVIDADE", 1)
+	local logBox = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 160), BackgroundColor3 = CONFIG.Bg2,
+		BorderSizePixel = 0, ZIndex = 5, Parent = s1,
+	})
+	corner(logBox, 6)
+	stroke(logBox, CONFIG.Border, 1)
+	local logScroll = make("ScrollingFrame", {
+		Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromOffset(4, 4),
+		BackgroundTransparency = 1, BorderSizePixel = 0,
+		ScrollBarThickness = 3, ScrollBarImageColor3 = CONFIG.Red,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ZIndex = 6, Parent = logBox,
+	})
+	make("UIListLayout", {
+		Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = logScroll,
+	})
+	local lastCount = 0
+	task.spawn(function()
+		while gui.Parent do
+			if #LOGS.Lista ~= lastCount then
+				lastCount = #LOGS.Lista
+				for _, c in ipairs(logScroll:GetChildren()) do
+					if c:IsA("TextLabel") then c:Destroy() end
+				end
+				for i, msg in ipairs(LOGS.Lista) do
+					make("TextLabel", {
+						Size = UDim2.new(1, 0, 0, 13), BackgroundTransparency = 1,
+						Font = Enum.Font.Code, TextSize = 10, TextColor3 = CONFIG.TextSoft,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						TextTruncate = Enum.TextTruncate.AtEnd,
+						Text = msg, LayoutOrder = i, ZIndex = 6, Parent = logScroll,
+					})
+				end
+			end
+			task.wait(1)
+		end
+	end)
+end
+
+-- CRÉDITOS
+do
+	local p = PAGES["credits"].frame
+	local s1 = makeSection(p, "CRIADOR", 1)
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 14, TextColor3 = CONFIG.Red,
+		TextXAlignment = Enum.TextXAlignment.Center, TextWrapped = true,
+		Text = "BY KEVIN", ZIndex = 5, Parent = s1,
+	})
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 10, TextColor3 = CONFIG.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Croks Hub " .. CONFIG.Version, ZIndex = 5, Parent = s1,
+	})
+	local s2 = makeSection(p, "DISCORD", 2)
+	make("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
+		Font = Enum.Font.Code, TextSize = 11, TextColor3 = CONFIG.Text,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = CONFIG.Discord, ZIndex = 5, Parent = s2,
+	})
+end
+
+showPage("main")
+
+do
+	local dragging, startPos, startInput, activeInput = false, nil, nil, nil
+	headerBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			startPos = window.Position
+			startInput = input.Position
+			activeInput = input
+			pcall(function() input:Capture() end)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging or not activeInput or input ~= activeInput then return end
+		local d = input.Position - startInput
+		window.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + d.X,
+			startPos.Y.Scale, startPos.Y.Offset + d.Y
+		)
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input == activeInput then
+			dragging = false
+			if activeInput then pcall(function() activeInput:Release() end) end
+			activeInput = nil
+		end
+	end)
+end
+
+local ball = make("TextButton", {
+	Size = UDim2.fromOffset(54, 54),
+	Position = UDim2.new(0, 30, 0.5, -27),
+	BackgroundColor3 = CONFIG.Bg, BorderSizePixel = 0,
+	Text = "", AutoButtonColor = false, Visible = false, Parent = gui,
+})
+corner(ball, 27)
+local ballStroke = make("UIStroke", {
+	Color = CONFIG.Red, Thickness = 1.6,
+	ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = ball,
+})
+local ballGrad = make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00, CONFIG.Red),
+		ColorSequenceKeypoint.new(0.25, CONFIG.RedGlow),
+		ColorSequenceKeypoint.new(0.50, CONFIG.Red),
+		ColorSequenceKeypoint.new(0.75, CONFIG.RedSoft),
+		ColorSequenceKeypoint.new(1.00, CONFIG.Red),
+	}),
+	Rotation = 0, Parent = ballStroke,
+})
+task.spawn(function()
+	local rot = 0
+	local hue = 0
+	while ballStroke.Parent do
+		if NEON_MODE == "RGB" then
+			hue = (hue + 0.01) % 1
+			local c1 = Color3.fromHSV(hue, 1, 1)
+			local c2 = Color3.fromHSV((hue + 0.15) % 1, 1, 1)
+			ballGrad.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0.00, c1),
+				ColorSequenceKeypoint.new(0.25, c2),
+				ColorSequenceKeypoint.new(0.50, c1),
+				ColorSequenceKeypoint.new(0.75, c2),
+				ColorSequenceKeypoint.new(1.00, c1),
+			})
+		else
+			local cfg = CONFIG.NeonColors[NEON_MODE] or CONFIG.NeonColors.Red
+			ballStroke.Color = cfg.main
+			ballGrad.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0.00, cfg.main),
+				ColorSequenceKeypoint.new(0.25, cfg.glow),
+				ColorSequenceKeypoint.new(0.50, cfg.main),
+				ColorSequenceKeypoint.new(0.75, cfg.glow),
+				ColorSequenceKeypoint.new(1.00, cfg.main),
+			})
+		end
+		rot = (rot + 6) % 360
+		ballGrad.Rotation = rot
+		task.wait(0.03)
+	end
+end)
+local ballMask = make("Frame", {
+	Size = UDim2.fromOffset(46, 46),
+	Position = UDim2.new(0.5, -23, 0.5, -23),
+	BackgroundColor3 = CONFIG.Bg, BorderSizePixel = 0,
+	ClipsDescendants = true, ZIndex = 2, Parent = ball,
+})
+corner(ballMask, 23)
+make("ImageLabel", {
+	Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+	Image = CONFIG.LOGO_IMAGE, ScaleType = Enum.ScaleType.Crop,
+	ZIndex = 3, Parent = ballMask,
+})
+do
+	local dragging, startPos, startInput, activeInput = false, nil, nil, nil
+	ball.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			startPos = ball.Position
+			startInput = input.Position
+			activeInput = input
+			pcall(function() input:Capture() end)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging or not activeInput or input ~= activeInput then return end
+		local d = input.Position - startInput
+		ball.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + d.X,
+			startPos.Y.Scale, startPos.Y.Offset + d.Y
+		)
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input == activeInput then
+			dragging = false
+			if activeInput then pcall(function() activeInput:Release() end) end
+			activeInput = nil
+		end
+	end)
+end
+
+local minimized = false
+local function openWindow()
+	ball.Visible = false
+	window.Visible = true
+	window.Size = UDim2.fromOffset(0, 0)
+	window.Position = UDim2.new(0.5, 0, 0.5, 0)
+	TweenService:Create(window, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(W, H),
+		Position = UDim2.new(0.5, -W / 2, 0.5, -H / 2),
+	}):Play()
+	minimized = false
+end
+local function closeWindow()
+	TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+		Size = UDim2.fromOffset(0, 0),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+	}):Play()
+	task.wait(0.3)
+	window.Visible = false
+	ball.Visible = true
+	minimized = true
+end
+ball.MouseButton1Click:Connect(openWindow)
+btnMin.MouseButton1Click:Connect(closeWindow)
+
+btnClose.MouseButton1Click:Connect(function()
+	stopLoop() stopIndexESP() stopESP()
+	stopPlace() stopTreadmill() stopAuto()
+	fpsOff() shieldStop()
+	gui:Destroy()
+	if NOTIF.Gui then NOTIF.Gui:Destroy() end
+end)
+
+KEY_ACTIONS.ToggleHub = function()
+	if minimized then openWindow() else closeWindow() end
+end
+KEY_ACTIONS.AutoSteal = function()
+	if AUTO.Running then stopAuto() notif("Auto Steal: OFF", "info", 2)
+	else startAuto() notif("Auto Steal: ON", "success", 2) end
+end
+KEY_ACTIONS.ESP = function()
+	if ESP.Running then stopESP() notif("ESP: OFF", "info", 2)
+	else startESP() notif("ESP: ON", "success", 2) end
+end
+KEY_ACTIONS.Treadmill = function()
+	if TREAD.Running then stopTreadmill() notif("Treadmill: OFF", "info", 2)
+	else startTreadmill() notif("Treadmill: ON", "success", 2) end
+end
+KEY_ACTIONS.Place = function()
+	if PLACE.Running then stopPlace() notif("Place: OFF", "info", 2)
+	else placeBlacklist = {} startPlace() notif("Place: ON", "success", 2) end
+end
+KEY_ACTIONS.Loop = function()
+	if LOOP.On then stopLoop() notif("Loop: OFF", "info", 2)
+	else
+		if startLoop() then notif("Loop: ON", "success", 2)
+		else notif("Configure o filtro", "warn", 3) end
+	end
+end
+
+window.Size = UDim2.fromOffset(0, 0)
+window.Position = UDim2.new(0.5, 0, 0.5, 0)
+TweenService:Create(window, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	Size = UDim2.fromOffset(W, H),
+	Position = UDim2.new(0.5, -W / 2, 0.5, -H / 2),
+}):Play()
+
+task.delay(0.5, function()
+	local msg = KEY_STATE.IsAdmin
+		and "👑 Bem-vindo, Admin!"
+		or "Croks Hub " .. CONFIG.Version .. " by Kevin"
+	notif(msg, "success", 3)
+end)
+
+shieldStart()
+log("Sistema iniciado — By Kevin")
